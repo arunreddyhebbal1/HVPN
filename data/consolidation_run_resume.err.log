@@ -1,0 +1,3 @@
+2026-06-26 16:01:55,721 INFO Starting per-substation consolidation (lookback=730 days, division_limit=None, date_limit=None, workers=2, resume=True)
+2026-06-26 16:02:07,254 INFO Resume: skipping 66 checkpoint URL(s), 270 staged date(s)
+2026-06-26 16:02:07,381 INFO [L1 1] TS Zone Hisar > TS Faridabad > TS Faridabad

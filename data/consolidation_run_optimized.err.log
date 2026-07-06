@@ -1,0 +1,63 @@
+2026-06-26 17:27:09,451 INFO Starting per-substation consolidation (lookback=730 days, division_limit=None, date_limit=None, workers=4, resume=True)
+2026-06-26 17:27:20,157 INFO Resume: skipping 276 checkpoint URL(s), 482 staged date(s)
+2026-06-26 17:27:20,191 INFO [L1 1] TS Zone Hisar > TS Faridabad > TS Faridabad
+2026-07-01 23:33:04,239 INFO   dates 25/249 | rows 11633 | substations 20 | errors 1
+2026-07-01 23:51:11,480 INFO   dates 50/249 | rows 23810 | substations 20 | errors 1
+2026-07-02 00:10:10,286 INFO   dates 75/249 | rows 35984 | substations 20 | errors 1
+2026-07-02 20:18:36,260 INFO   dates 100/249 | rows 48137 | substations 21 | errors 1
+2026-07-02 20:28:33,818 INFO   dates 125/249 | rows 60416 | substations 24 | errors 1
+2026-07-02 20:45:13,036 INFO   dates 150/249 | rows 72634 | substations 24 | errors 1
+2026-07-02 20:55:52,391 INFO   dates 175/249 | rows 84867 | substations 24 | errors 1
+2026-07-02 21:06:29,698 INFO   dates 200/249 | rows 97093 | substations 25 | errors 1
+2026-07-02 21:19:37,177 INFO   dates 225/249 | rows 109344 | substations 25 | errors 1
+2026-07-02 21:31:22,213 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\220 A4.xlsx (4 rows)
+2026-07-02 21:31:49,527 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\220 A5.xlsx (19224 rows)
+2026-07-02 21:35:16,815 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\220 Pali.xlsx (19128 rows)
+2026-07-02 21:36:43,674 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\220 Palla.xlsx (18871 rows)
+2026-07-02 21:36:43,801 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\220 SEC 46.xlsx (24 rows)
+2026-07-02 21:38:29,033 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\220 Sec-46.xlsx (19124 rows)
+2026-07-02 21:38:36,633 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\220 Sector-58.xlsx (19128 rows)
+2026-07-02 21:38:36,764 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\220kv sector 46.xlsx (23 rows)
+2026-07-02 21:38:51,353 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\66 A2.xlsx (18331 rows)
+2026-07-02 21:38:58,699 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\66 Dabriwala.xlsx (19128 rows)
+2026-07-02 21:39:15,109 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\66 Dhauj.xlsx (19128 rows)
+2026-07-02 21:39:23,089 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\66 Escort 2.xlsx (19200 rows)
+2026-07-02 21:40:08,871 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\66 FCI.xlsx (19206 rows)
+2026-07-02 21:40:17,780 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\66 Globe Steel.xlsx (19175 rows)
+2026-07-02 21:40:28,168 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\66 Hyderabad.xlsx (19128 rows)
+2026-07-02 21:40:41,397 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\66 Idgah.xlsx (22400 rows)
+2026-07-02 21:41:02,138 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\66 Jharnsetly.xlsx (22316 rows)
+2026-07-02 21:41:13,204 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\66 NH3.xlsx (19224 rows)
+2026-07-02 21:41:23,723 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\66 Northern India.xlsx (20818 rows)
+2026-07-02 21:41:33,743 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\66 Oswal Steel.xlsx (19128 rows)
+2026-07-02 21:41:48,241 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\66 Partap Steel.xlsx (19156 rows)
+2026-07-02 21:42:33,816 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\66 SECTOR-31.xlsx (19181 rows)
+2026-07-02 21:49:40,780 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\66 Sector 64.xlsx (18725 rows)
+2026-07-02 21:49:41,114 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\Copy of 66 Partap Steel.xlsx (48 rows)
+2026-07-02 21:49:41,183 INFO Wrote C:\Users\arunr\Projects\substation-analytics-dashboard\data\substations\TS Zone Hisar\TS Faridabad\Copy of 66 Partap Steel 1.xlsx (24 rows)
+2026-07-02 21:49:41,185 INFO   division checkpoint: wrote 25 substation workbook(s)
+2026-07-02 21:49:41,186 INFO [L1 2] TS Zone Hisar > TS Faridabad > TS Palwal
+2026-07-02 21:59:01,453 INFO   dates 25/731 | rows 134390 | substations 48 | errors 1
+2026-07-02 22:07:07,562 INFO   dates 50/731 | rows 147694 | substations 48 | errors 1
+2026-07-02 22:15:15,228 INFO   dates 75/731 | rows 161053 | substations 48 | errors 1
+2026-07-02 23:16:58,674 INFO   dates 100/731 | rows 174448 | substations 48 | errors 1
+2026-07-02 23:25:49,631 INFO   dates 125/731 | rows 187941 | substations 48 | errors 1
+2026-07-02 23:35:05,596 INFO   dates 150/731 | rows 201281 | substations 49 | errors 1
+2026-07-04 16:32:25,400 INFO   dates 175/731 | rows 214781 | substations 49 | errors 1
+2026-07-04 16:44:31,838 INFO   dates 200/731 | rows 228200 | substations 49 | errors 1
+2026-07-04 16:59:11,125 INFO   dates 225/731 | rows 241826 | substations 49 | errors 1
+2026-07-04 17:11:36,619 INFO   dates 250/731 | rows 255211 | substations 49 | errors 1
+2026-07-04 17:23:45,384 INFO   dates 275/731 | rows 268681 | substations 49 | errors 1
+2026-07-04 20:41:45,777 INFO   dates 300/731 | rows 282103 | substations 49 | errors 1
+2026-07-04 20:56:32,827 INFO   dates 325/731 | rows 295587 | substations 50 | errors 1
+2026-07-04 21:08:14,087 INFO   dates 350/731 | rows 309011 | substations 50 | errors 1
+2026-07-04 21:20:04,137 INFO   dates 375/731 | rows 322581 | substations 50 | errors 1
+2026-07-04 21:28:36,948 INFO   dates 400/731 | rows 335515 | substations 50 | errors 2
+2026-07-04 21:37:14,625 INFO   dates 425/731 | rows 348833 | substations 50 | errors 2
+2026-07-04 21:45:52,139 INFO   dates 450/731 | rows 361861 | substations 50 | errors 3
+2026-07-05 00:28:15,657 INFO   dates 475/731 | rows 375231 | substations 51 | errors 3
+2026-07-05 00:42:06,239 INFO   dates 500/731 | rows 388767 | substations 51 | errors 3
+2026-07-05 00:54:47,790 INFO   dates 525/731 | rows 402334 | substations 51 | errors 3
+2026-07-05 01:07:17,736 INFO   dates 550/731 | rows 415851 | substations 51 | errors 3
+2026-07-05 01:19:33,713 INFO   dates 575/731 | rows 429521 | substations 52 | errors 3
+2026-07-05 01:32:33,920 INFO   dates 600/731 | rows 442594 | substations 53 | errors 4

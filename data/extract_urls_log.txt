@@ -1,0 +1,179 @@
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\_Date Master TS Bhiwani.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\_Date Master TS Bhiwani - with URLs.xlsx
+sheet='Date Master'
+rows=2001
+link_col=B
+url_col=C
+urls_written=1726
+headers=["A='Log Sheet Date'", "B='Access Link'", "C='URL'", 'D=None', 'E=None']
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master 400kV Kirori.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master 400kV Kirori - with URLs.xlsx
+sheet='Date Master'
+rows=1940
+link_col=B
+url_col=C
+urls_written=1670
+headers=["A='Log Sheet Date'", "B='Access Link'", "C='URL'", 'D=None']
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master 400kV Nawada.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master 400kV Nawada - with URLs.xlsx
+sheet='Date Master'
+rows=1662
+link_col=B
+url_col=C
+urls_written=1660
+headers=['A=7.0', "B='Access Link'", "C='URL'"]
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Ambala.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Ambala - with URLs.xlsx
+sheet='Date Master'
+rows=1732
+link_col=B
+url_col=C
+urls_written=1728
+headers=["A='Log Sheet Date'", "B='Access Link'", "C='URL'", 'D=None', 'E=None', 'F=None']
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Faridabad.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Faridabad - with URLs.xlsx
+sheet='Date Master'
+rows=1729
+link_col=B
+url_col=C
+urls_written=1728
+headers=["A='Log Sheet Date'", "B='Access Link'", "C='URL'"]
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Gurugram.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Gurugram - with URLs.xlsx
+sheet='Date Master'
+rows=1722
+link_col=B
+url_col=C
+urls_written=1720
+headers=["A='Log Sheet Date'", "B='Access Link'", "C='URL'", 'D=None', 'E=None', 'F=None', 'G=None', 'H=None', 'I=None', 'J=None']
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Hisar.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Hisar - with URLs.xlsx
+sheet='Date Master'
+rows=2001
+link_col=B
+url_col=C
+urls_written=1732
+headers=["A='Log Sheet Date'", "B='Access Link'", "C='URL'", 'D=None', 'E=None']
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Jind.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Jind - with URLs.xlsx
+sheet='Date Master'
+rows=2001
+link_col=B
+url_col=C
+urls_written=1730
+headers=["A='Log Sheet Date'", "B='Access Link'", "C='URL'"]
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Kaithal.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Kaithal - with URLs.xlsx
+sheet='Date Master'
+rows=2001
+link_col=B
+url_col=C
+urls_written=1730
+headers=["A='Log Sheet Date'", "B='Access Link'", "C='URL'", 'D=None', 'E=None', 'F=None', 'G=None', 'H=None', 'I=None']
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Karnal.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Karnal - with URLs.xlsx
+sheet='Date Master'
+rows=1731
+link_col=B
+url_col=C
+urls_written=1727
+headers=["A='Log Sheet Date'", "B='Access Link'", "C='URL'"]
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Kurukshetra.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Kurukshetra - with URLs.xlsx
+sheet='Date Master'
+rows=1731
+link_col=B
+url_col=C
+urls_written=1730
+headers=["A='Log Sheet Date'", "B='Access Link'", "C='URL'", 'D=None', 'E=None', 'F=None', 'G=None', 'H=None', 'I=None', 'J=None']
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Madanpur.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Madanpur - with URLs.xlsx
+sheet='Date Master'
+rows=1733
+link_col=B
+url_col=C
+urls_written=1726
+headers=["A='Log Sheet Date'", "B='Access Link'", "C='URL'", 'D=None', 'E=None', 'F=None', 'G=None', 'H=None']
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Manesar.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Manesar - with URLs.xlsx
+sheet='Date Master'
+rows=1730
+link_col=B
+url_col=C
+urls_written=1728
+headers=['A=None', "B='Access Link'", "C='URL'", 'D=None', 'E=None', 'F=None', 'G=None', 'H=None', 'I=None', 'J=None', 'K=None']
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Palwal.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Palwal - with URLs.xlsx
+sheet='Date Master'
+rows=1722
+link_col=B
+url_col=C
+urls_written=1720
+headers=["A='Log Sheet Date'", "B='Access Link'", "C='URL'", 'D=None', 'E=None', 'F=None']
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Panipat.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Panipat - with URLs.xlsx
+sheet='Date Master'
+rows=1730
+link_col=B
+url_col=C
+urls_written=1726
+headers=["A='Log Sheet Date'", "B='Access Link'", "C='URL'", 'D=None', 'E=None', 'F=None']
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Rewari.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Rewari - with URLs.xlsx
+sheet='Date Master'
+rows=1725
+link_col=B
+url_col=C
+urls_written=1724
+headers=['A=2.0', "B='Access Link'", "C='URL'", 'D=None', 'E=None', 'F=None', 'G=None', 'H=None', 'I=None', 'J=None']
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Rohtak.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Rohtak - with URLs.xlsx
+sheet='Date Master'
+rows=1735
+link_col=B
+url_col=C
+urls_written=1726
+headers=["A='Log Sheet Date'", "B='Access Link'", "C='URL'", 'D=None', 'E=None', 'F=None', 'G=None', 'H=None', 'I=None']
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Sirsa.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Sirsa - with URLs.xlsx
+sheet='Date Master'
+rows=2001
+link_col=B
+url_col=C
+urls_written=1727
+headers=["A=' '", "B='Access Link'", "C='URL'", 'D=None', 'E=None', 'F=None', 'G=None', 'H=None', 'I=None', 'J=None', 'K=None', 'L=None', 'M=None', 'N=None', 'O=None']
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Yamuna Nagar.xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Date Master TS Yamuna Nagar - with URLs.xlsx
+sheet='Date Master'
+rows=2001
+link_col=B
+url_col=C
+urls_written=1723
+headers=["A='Log Sheet Date'", "B='Access Link'", "C='URL'", 'D=None', 'E=None', 'F=None', 'G=None', 'H=None', 'I=None', 'J=None']
+
+input=C:\Users\arunr\Projects\substation-analytics-dashboard\Division Master (1).xlsx
+output=C:\Users\arunr\Projects\substation-analytics-dashboard\Division Master (1) - with URLs.xlsx
+sheet='Division Master'
+rows=994
+link_col=E
+url_col=F
+urls_written=19
+headers=['A=None', "B='Zone'", "C='Circle'", "D='Division'", "E='Access Link'", "F='URL'", 'G=None', 'H=None', 'I=None', 'J=None', 'K=None', 'L=None']

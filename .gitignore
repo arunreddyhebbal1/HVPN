@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.env
+credentials/
+data/cache/
+data/substations/_staging/
+data/*.xlsx
+data/consolidated_*.csv
+data/consolidation_errors.csv
+data/schema_inspection.json

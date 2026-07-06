@@ -1,0 +1,37 @@
+[2026-06-26 16:26:20] trees=1 procs=2 stall_min=0.3 alive=True
+  2026-06-26 16:05:57,904 INFO [L1 1] TS Zone Hisar > TS Faridabad > TS Faridabad
+  2026-06-26 16:15:28,167 INFO   dates 25/452 | rows 12182 | substations 20 | errors 0
+  2026-06-26 16:26:02,651 INFO   dates 50/452 | rows 24376 | substations 20 | errors 0
+[2026-06-26 16:31:21] trees=1 procs=2 stall_min=5.3 alive=True
+  2026-06-26 16:05:57,904 INFO [L1 1] TS Zone Hisar > TS Faridabad > TS Faridabad
+  2026-06-26 16:15:28,167 INFO   dates 25/452 | rows 12182 | substations 20 | errors 0
+  2026-06-26 16:26:02,651 INFO   dates 50/452 | rows 24376 | substations 20 | errors 0
+[2026-06-26 16:36:21] trees=1 procs=2 stall_min=1.5 alive=True
+  2026-06-26 16:15:28,167 INFO   dates 25/452 | rows 12182 | substations 20 | errors 0
+  2026-06-26 16:26:02,651 INFO   dates 50/452 | rows 24376 | substations 20 | errors 0
+  2026-06-26 16:34:50,819 INFO   dates 75/452 | rows 36556 | substations 20 | errors 0
+[2026-06-26 16:41:21] trees=1 procs=2 stall_min=6.5 alive=True
+  2026-06-26 16:15:28,167 INFO   dates 25/452 | rows 12182 | substations 20 | errors 0
+  2026-06-26 16:26:02,651 INFO   dates 50/452 | rows 24376 | substations 20 | errors 0
+  2026-06-26 16:34:50,819 INFO   dates 75/452 | rows 36556 | substations 20 | errors 0
+[2026-06-26 16:46:24] trees=1 procs=2 stall_min=4.1 alive=True
+  2026-06-26 16:26:02,651 INFO   dates 50/452 | rows 24376 | substations 20 | errors 0
+  2026-06-26 16:34:50,819 INFO   dates 75/452 | rows 36556 | substations 20 | errors 0
+  2026-06-26 16:42:17,951 INFO   dates 100/452 | rows 48763 | substations 20 | errors 0
+[2026-06-26 16:53:55] trees=1 procs=2 stall_min=1.9 alive=True
+  2026-06-26 16:34:50,819 INFO   dates 75/452 | rows 36556 | substations 20 | errors 0
+  2026-06-26 16:42:17,951 INFO   dates 100/452 | rows 48763 | substations 20 | errors 0
+  2026-06-26 16:51:58,644 INFO   dates 125/452 | rows 60979 | substations 20 | errors 0
+[2026-06-26 16:58:55] trees=1 procs=2 stall_min=0.1 alive=True
+  2026-06-26 16:42:17,951 INFO   dates 100/452 | rows 48763 | substations 20 | errors 0
+  2026-06-26 16:51:58,644 INFO   dates 125/452 | rows 60979 | substations 20 | errors 0
+  2026-06-26 16:58:50,706 INFO   dates 150/452 | rows 72663 | substations 20 | errors 1
+[2026-06-26 17:07:52] trees=1 procs=2 stall_min=9.0 alive=True
+  2026-06-26 16:42:17,951 INFO   dates 100/452 | rows 48763 | substations 20 | errors 0
+  2026-06-26 16:51:58,644 INFO   dates 125/452 | rows 60979 | substations 20 | errors 0
+  2026-06-26 16:58:50,706 INFO   dates 150/452 | rows 72663 | substations 20 | errors 1
+[2026-06-26 17:12:52] trees=3 procs=6 stall_min=0.2 alive=True
+  2026-06-26 17:12:05,141 INFO Starting per-substation consolidation (lookback=730 days, division_limit=None, date_limit=None, workers=4, resume=True)
+  2026-06-26 17:12:38,810 INFO Resume: skipping 253 checkpoint URL(s), 459 staged date(s)
+  2026-06-26 17:12:38,894 INFO [L1 1] TS Zone Hisar > TS Faridabad > TS Faridabad
+FAILED: duplicate process trees detected (3)
