@@ -404,6 +404,7 @@ body, .app-body {
     grid-template-columns: repeat(2, minmax(130px, 1fr));
   }
   .filter-actions { grid-column: 1 / -1; justify-self: start; }
+  .filter-field-date { grid-column: 1 / -1; }
 }
 
 .filter-field {
@@ -440,6 +441,532 @@ body, .app-body {
 }
 
 .filter-actions { display: flex; gap: 8px; align-items: center; }
+
+/* ─── Date range picker ─── */
+.filter-field-date {
+  position: relative;
+}
+
+.date-range-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.date-range-trigger:hover {
+  border-color: var(--primary);
+}
+
+.date-range-trigger:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.15);
+}
+
+.date-range-trigger svg {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.date-range-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.date-range-popover {
+  position: fixed;
+  z-index: 500;
+  pointer-events: none;
+}
+
+.date-range-popover[hidden] {
+  display: none !important;
+}
+
+.date-range-popover:not([hidden]) {
+  display: flex;
+}
+
+.date-range-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  pointer-events: auto;
+  z-index: 0;
+}
+
+.drp-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+  pointer-events: auto;
+  max-width: 100%;
+}
+
+.drp-mobile-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.drp-mobile-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.drp-mobile-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, color 0.12s;
+}
+
+.drp-mobile-close:hover {
+  background: var(--bg-page);
+  color: var(--text-primary);
+}
+
+.drp-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 152px;
+  padding: 12px;
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.drp-preset {
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: var(--font);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+
+.drp-preset:hover {
+  background: var(--bg-page);
+  color: var(--text-primary);
+}
+
+.drp-preset.active {
+  background: rgba(0, 102, 204, 0.1);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.drp-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.drp-calendars {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  padding: 16px 12px 8px;
+}
+
+.drp-calendar {
+  padding: 0 8px 8px;
+  min-width: 0;
+}
+
+.drp-cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 0 4px;
+  gap: 8px;
+}
+
+.drp-cal-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+  flex: 1;
+}
+
+.drp-cal-nav {
+  display: flex;
+  gap: 4px;
+  min-width: 28px;
+}
+
+.drp-nav-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s;
+}
+
+.drp-nav-btn:hover {
+  background: var(--bg-page);
+  color: var(--text-primary);
+}
+
+.drp-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  margin-bottom: 4px;
+}
+
+.drp-weekday {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+
+.drp-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px 0;
+}
+
+.drp-day {
+  position: relative;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font);
+  cursor: pointer;
+  padding: 0;
+  z-index: 1;
+}
+
+.drp-day.empty {
+  cursor: default;
+  pointer-events: none;
+}
+
+.drp-day .drp-day-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0 auto;
+  border-radius: 50%;
+  transition: background 0.12s, color 0.12s;
+}
+
+.drp-day:hover:not(.empty) .drp-day-inner {
+  background: var(--bg-page);
+}
+
+.drp-day.in-range::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 32px;
+  transform: translateY(-50%);
+  background: rgba(0, 102, 204, 0.1);
+  z-index: 0;
+}
+
+.drp-day.range-start.in-range::before {
+  left: 50%;
+  border-radius: 16px 0 0 16px;
+}
+
+.drp-day.range-end.in-range::before {
+  right: 50%;
+  border-radius: 0 16px 16px 0;
+}
+
+.drp-day.range-start.range-end.in-range::before {
+  display: none;
+}
+
+.drp-day.range-start .drp-day-inner,
+.drp-day.range-end .drp-day-inner {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.drp-day.today:not(.range-start):not(.range-end) .drp-day-inner {
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.drp-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.drp-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.drp-datetime-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font);
+}
+
+.drp-datetime-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.15);
+}
+
+.drp-input-sep {
+  color: var(--text-secondary);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.drp-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.drp-actions .btn {
+  flex: 1;
+}
+
+/* Desktop dropdown (anchored to trigger) */
+.date-range-popover.drp-mode-dropdown {
+  top: var(--drp-top, auto);
+  left: var(--drp-left, auto);
+  width: var(--drp-width, min(720px, calc(100vw - 32px)));
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.date-range-popover.drp-mode-dropdown .drp-panel {
+  width: 100%;
+  max-height: min(520px, calc(100vh - var(--drp-top, 80px) - 16px));
+  overflow-y: auto;
+}
+
+/* Tablet centered modal */
+.date-range-popover.drp-mode-modal {
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.date-range-popover.drp-mode-modal .date-range-backdrop {
+  display: block;
+}
+
+.date-range-popover.drp-mode-modal .drp-panel {
+  width: min(640px, 100%);
+  max-height: min(90vh, 100%);
+  overflow-y: auto;
+  flex-direction: column;
+}
+
+.date-range-popover.drp-mode-modal .drp-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+  gap: 6px;
+  padding: 12px;
+}
+
+.date-range-popover.drp-mode-modal .drp-preset {
+  text-align: center;
+  padding: 8px 6px;
+  border: 1px solid var(--border);
+}
+
+.date-range-popover.drp-mode-modal .drp-calendars {
+  grid-template-columns: 1fr;
+  padding: 12px;
+}
+
+.date-range-popover.drp-mode-modal #drp-calendar-right {
+  display: none;
+}
+
+/* Mobile bottom sheet */
+.date-range-popover.drp-mode-sheet {
+  inset: 0;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.date-range-popover.drp-mode-sheet .date-range-backdrop {
+  display: block;
+}
+
+.date-range-popover.drp-mode-sheet .drp-panel {
+  width: 100%;
+  max-height: 92vh;
+  border-radius: 16px 16px 0 0;
+  overflow-y: auto;
+  flex-direction: column;
+  animation: drpSheetIn 0.22s ease;
+}
+
+.date-range-popover.drp-mode-sheet .drp-mobile-header {
+  display: flex;
+}
+
+.date-range-popover.drp-mode-sheet .drp-presets {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  width: 100%;
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 12px;
+  gap: 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.date-range-popover.drp-mode-sheet .drp-presets::-webkit-scrollbar {
+  display: none;
+}
+
+.date-range-popover.drp-mode-sheet .drp-preset {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  text-align: center;
+}
+
+.date-range-popover.drp-mode-sheet .drp-calendars {
+  grid-template-columns: 1fr;
+  padding: 12px 8px 4px;
+}
+
+.date-range-popover.drp-mode-sheet #drp-calendar-right {
+  display: none;
+}
+
+.date-range-popover.drp-mode-sheet .drp-footer {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  position: sticky;
+  bottom: 0;
+  background: var(--bg-card);
+}
+
+.date-range-popover.drp-mode-sheet .drp-inputs {
+  flex-direction: column;
+  width: 100%;
+}
+
+.date-range-popover.drp-mode-sheet .drp-input-sep {
+  display: none;
+}
+
+@keyframes drpSheetIn {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+body.drp-scroll-lock {
+  overflow: hidden;
+}
+
+@media (max-width: 480px) {
+  .drp-day {
+    height: 34px;
+    font-size: 12px;
+  }
+
+  .drp-day .drp-day-inner {
+    width: 28px;
+    height: 28px;
+  }
+
+  .drp-cal-title {
+    font-size: 13px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .date-range-popover.drp-mode-dropdown .drp-presets {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.btn-sm {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+}
 
 .btn {
   display: inline-flex;
@@ -1096,6 +1623,120 @@ body, .app-body {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.chart-focus-btn {
+  flex-shrink: 0;
+}
+
+.chart-focus-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 700;
+  background: var(--bg-page);
+  display: flex;
+  flex-direction: column;
+  animation: chartFocusIn 0.22s ease;
+}
+
+.chart-focus-overlay[hidden] {
+  display: none !important;
+}
+
+.chart-focus-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.chart-focus-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  flex-shrink: 0;
+}
+
+.chart-focus-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.chart-focus-close {
+  flex-shrink: 0;
+}
+
+.chart-focus-content {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 20px 20px;
+  overflow: auto;
+}
+
+.chart-focus-content .panel {
+  height: 100%;
+  min-height: min(100%, 720px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+
+.chart-focus-content .panel--focused .panel-header {
+  flex-shrink: 0;
+}
+
+.chart-focus-content .panel--focused .panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-focus-content .panel--focused .chart-container,
+.chart-focus-content .panel--focused .chart-container-lg,
+.chart-focus-content .panel--focused .sparkline-wrap {
+  flex: 1;
+  height: auto !important;
+  min-height: 280px;
+}
+
+.chart-focus-content .panel--focused .pq-gauge-wrap {
+  min-height: 200px;
+}
+
+body.chart-focus-active {
+  overflow: hidden;
+}
+
+@keyframes chartFocusIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 640px) {
+  .chart-focus-header {
+    padding: 12px 14px;
+  }
+
+  .chart-focus-title {
+    font-size: 16px;
+  }
+
+  .chart-focus-content {
+    padding: 12px;
+  }
+
+  .chart-focus-content .panel--focused .chart-container,
+  .chart-focus-content .panel--focused .chart-container-lg {
+    min-height: 220px;
+  }
 }
 
 .select-sm {

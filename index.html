@@ -57,9 +57,17 @@
           <i data-lucide="activity" class="nav-icon"></i>
           <span class="nav-label">System Operation</span>
         </button>
+        <button data-view="power-quality" class="nav-item" title="Power Quality Analytics">
+          <i data-lucide="gauge" class="nav-icon"></i>
+          <span class="nav-label">Power Quality</span>
+        </button>
         <button data-view="load-analytics" class="nav-item" title="Load Analytics">
           <i data-lucide="line-chart" class="nav-icon"></i>
           <span class="nav-label">Load Analytics</span>
+        </button>
+        <button data-view="transmission-loss" class="nav-item" title="Transmission Loss Analytics">
+          <i data-lucide="zap-off" class="nav-icon"></i>
+          <span class="nav-label">Transmission Loss</span>
         </button>
         <button data-view="fault-risk" class="nav-item" title="Fault &amp; Risk Analytics">
           <i data-lucide="alert-octagon" class="nav-icon"></i>
@@ -87,6 +95,10 @@
           <i data-lucide="wrench" class="nav-icon"></i>
           <span class="nav-label">Maintenance</span>
         </button>
+        <button data-view="live-alarms" class="nav-item" title="Live Alarms">
+          <i data-lucide="bell-ring" class="nav-icon"></i>
+          <span class="nav-label">Live Alarms</span>
+        </button>
         <button data-view="grid-intelligence" class="nav-item nav-alias" title="Compliance" data-nav-alias="compliance">
           <i data-lucide="shield-check" class="nav-icon"></i>
           <span class="nav-label">Compliance</span>
@@ -100,6 +112,10 @@
         <button data-view="overview" class="nav-item nav-alias" title="Settings" data-nav-alias="settings">
           <i data-lucide="settings" class="nav-icon"></i>
           <span class="nav-label">Settings</span>
+        </button>
+        <button data-view="uptime" class="nav-item" title="Uptime Monitoring">
+          <i data-lucide="timer-reset" class="nav-icon"></i>
+          <span class="nav-label">Uptime</span>
         </button>
       </nav>
 
@@ -176,15 +192,51 @@
             <label for="filter-substation" class="filter-label">Substation</label>
             <select id="filter-substation" class="filter-select"></select>
           </div>
-          <div class="filter-field">
-            <label for="filter-date" class="filter-label">Date Range</label>
-            <select id="filter-date" class="filter-select">
-              <option value="today">Today</option>
-              <option value="7d" selected>Last 7 Days</option>
-              <option value="30d">Last 30 Days</option>
-              <option value="90d">Last 90 Days</option>
-              <option value="ytd">Year to Date</option>
-            </select>
+          <div class="filter-field filter-field-date">
+            <label class="filter-label" for="date-range-trigger">Date Range</label>
+            <button type="button" id="date-range-trigger" class="date-range-trigger" aria-haspopup="dialog" aria-expanded="false">
+              <i data-lucide="calendar" class="h-4 w-4"></i>
+              <span id="date-range-label">Last 7 Days</span>
+            </button>
+            <div id="date-range-popover" class="date-range-popover" role="dialog" aria-label="Choose date range" hidden>
+              <div class="date-range-backdrop" id="date-range-backdrop" aria-hidden="true"></div>
+              <div class="drp-panel">
+                <div class="drp-mobile-header">
+                  <span class="drp-mobile-title">Select date range</span>
+                  <button type="button" id="drp-mobile-close" class="drp-mobile-close" aria-label="Close date picker">
+                    <i data-lucide="x" class="h-4 w-4"></i>
+                  </button>
+                </div>
+                <aside class="drp-presets">
+                  <button type="button" class="drp-preset" data-preset="today">Today</button>
+                  <button type="button" class="drp-preset" data-preset="yesterday">Yesterday</button>
+                  <button type="button" class="drp-preset" data-preset="thisWeek">This week</button>
+                  <button type="button" class="drp-preset" data-preset="lastWeek">Last week</button>
+                  <button type="button" class="drp-preset" data-preset="thisMonth">This month</button>
+                  <button type="button" class="drp-preset" data-preset="lastMonth">Last month</button>
+                  <button type="button" class="drp-preset" data-preset="thisYear">This year</button>
+                  <button type="button" class="drp-preset" data-preset="lastYear">Last year</button>
+                  <button type="button" class="drp-preset" data-preset="allTime">All time</button>
+                </aside>
+                <div class="drp-main">
+                  <div class="drp-calendars">
+                    <div class="drp-calendar" id="drp-calendar-left"></div>
+                    <div class="drp-calendar" id="drp-calendar-right"></div>
+                  </div>
+                  <div class="drp-footer">
+                    <div class="drp-inputs">
+                      <input type="datetime-local" id="drp-start-input" class="drp-datetime-input" aria-label="Start date and time" />
+                      <span class="drp-input-sep">–</span>
+                      <input type="datetime-local" id="drp-end-input" class="drp-datetime-input" aria-label="End date and time" />
+                    </div>
+                    <div class="drp-actions">
+                      <button type="button" id="drp-cancel" class="btn btn-secondary btn-sm">Cancel</button>
+                      <button type="button" id="drp-apply" class="btn btn-primary btn-sm">Apply</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="filter-actions">
             <button id="filter-apply" class="btn btn-primary" type="button">
@@ -255,10 +307,11 @@
               <div class="panel-header">
                 <h3>Live Load Trend</h3>
                 <div class="chart-toolbar">
-                  <select class="select-sm" id="ov-chart-range">
-                    <option value="1h">1 Hour</option>
-                    <option value="24h" selected>24 Hours</option>
-                    <option value="7d">7 Days</option>
+                  <select class="select-sm chart-time-filter" id="ov-chart-range" aria-label="Chart time interval">
+                    <option value="hour" selected>Hour</option>
+                    <option value="day">Day</option>
+                    <option value="week">Week</option>
+                    <option value="month">Month</option>
                   </select>
                   <button class="btn btn-secondary btn-sm" type="button" title="Export" onclick="return false">
                     <i data-lucide="download" class="h-4 w-4"></i>
@@ -309,7 +362,7 @@
             <div class="panel">
               <div class="panel-header"><h3>Maintenance Schedule</h3></div>
               <div class="panel-body">
-                <div class="grid-4" id="maint-stats"></div>
+                <div class="grid-5" id="maint-stats"></div>
                 <div id="maint-progress"></div>
               </div>
             </div>
@@ -397,6 +450,59 @@
           </div>
         </section>
 
+        <!-- POWER QUALITY ANALYTICS -->
+        <section id="view-power-quality" class="view view-stack">
+          <div class="section-banner">
+            <i data-lucide="gauge" class="h-5 w-5"></i>
+            <div>
+              <h3>Power Quality Analytics</h3>
+              <p>THD, voltage stability, flicker and transient event monitoring with quality trends</p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Quality Snapshot</h3>
+              <span class="badge badge-success" id="pq-tab-status">Grid Code: PASS</span>
+            </div>
+            <div class="panel-body">
+              <div class="pq-grid">
+                <div class="pq-metric">
+                  <div class="pq-gauge-wrap"><canvas id="pq-tab-thd-gauge"></canvas></div>
+                  <p class="pq-label">Harmonic Distortion (THD)</p>
+                  <p class="pq-value" id="pq-tab-thd-value">2.8%</p>
+                </div>
+                <div class="pq-metric">
+                  <div class="pq-gauge-wrap"><canvas id="pq-tab-voltage-gauge"></canvas></div>
+                  <p class="pq-label">Voltage Stability</p>
+                  <p class="pq-value" id="pq-tab-voltage-value">98.2%</p>
+                </div>
+                <div class="pq-metric">
+                  <div class="pq-gauge-wrap"><canvas id="pq-tab-flicker-gauge"></canvas></div>
+                  <p class="pq-label">Flicker Index</p>
+                  <p class="pq-value" id="pq-tab-flicker-value">0.42</p>
+                </div>
+                <div class="pq-metric">
+                  <div class="pq-gauge-wrap"><canvas id="pq-tab-transient-gauge"></canvas></div>
+                  <p class="pq-label">Transient Events / hr</p>
+                  <p class="pq-value" id="pq-tab-transient-value">3</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2 page-section">
+            <div class="panel">
+              <div class="panel-header"><h3>Power Quality Trend</h3></div>
+              <div class="panel-body chart-container-lg"><canvas id="pq-trend-chart"></canvas></div>
+            </div>
+            <div class="panel">
+              <div class="panel-header"><h3>Event Distribution</h3></div>
+              <div class="panel-body chart-container-lg"><canvas id="pq-events-chart"></canvas></div>
+            </div>
+          </div>
+        </section>
+
         <!-- LOAD ANALYTICS -->
         <section id="view-load-analytics" class="view view-stack">
           <div class="section-banner">
@@ -455,6 +561,68 @@
             </div>
           </div>
 
+          <div class="kpi-grid-compact">
+            <div class="kpi-card kpi-compact kpi-accent-blue">
+              <div class="kpi-compact-row">
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Scheduled Drawal</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="la-scheduled">125 MW</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-teal">
+              <div class="kpi-compact-row">
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Actual Drawal</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="la-actual">130 MW</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-orange">
+              <div class="kpi-compact-row">
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Deviation</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="la-deviation">+4.0%</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-green">
+              <div class="kpi-compact-row">
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Availability</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="la-availability">160 MW</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-red">
+              <div class="kpi-compact-row">
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">DSM Penalty</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="la-dsm">Rs 24,500</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-orange">
+              <div class="kpi-compact-row">
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Anomalies</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="la-load-anomalies">7</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2 page-section">
+            <div class="panel">
+              <div class="panel-header"><h3>Load Trend (MW)</h3></div>
+              <div class="panel-body chart-container-lg"><canvas id="la-trend-chart"></canvas></div>
+            </div>
+            <div class="panel">
+              <div class="panel-header"><h3>Scheduled vs Actual</h3></div>
+              <div class="panel-body chart-container-lg"><canvas id="la-sva-chart"></canvas></div>
+            </div>
+          </div>
+
           <div class="panel">
             <div class="panel-header">
               <h3>Load Profile Analytics</h3>
@@ -490,6 +658,73 @@
           <div class="panel">
             <div class="panel-header"><h3>Feeder Load Comparison</h3></div>
             <div class="panel-body chart-container"><canvas id="load-feeder-chart"></canvas></div>
+          </div>
+
+        </section>
+
+        <!-- TRANSMISSION LOSS ANALYTICS -->
+        <section id="view-transmission-loss" class="view view-stack">
+          <div class="section-banner">
+            <i data-lucide="zap-off" class="h-5 w-5"></i>
+            <div>
+              <h3>Transmission Loss Analytics</h3>
+              <p>Technical/non-technical loss trends, feeder hotspots and region-wise loss concentration</p>
+            </div>
+          </div>
+
+          <div class="kpi-grid-compact">
+            <div class="kpi-card kpi-compact kpi-accent-red">
+              <div class="kpi-compact-row"><div class="kpi-compact-body"><p class="kpi-label">Total Loss</p><div class="kpi-compact-values"><p class="kpi-value" id="tl-total-loss">4.3%</p></div></div></div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-blue">
+              <div class="kpi-compact-row"><div class="kpi-compact-body"><p class="kpi-label">Technical Loss</p><div class="kpi-compact-values"><p class="kpi-value" id="tl-technical-loss">3.2%</p></div></div></div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-orange">
+              <div class="kpi-compact-row"><div class="kpi-compact-body"><p class="kpi-label">Non-Technical Loss</p><div class="kpi-compact-values"><p class="kpi-value" id="tl-nontechnical-loss">1.1%</p></div></div></div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-green">
+              <div class="kpi-compact-row"><div class="kpi-compact-body"><p class="kpi-label">Highest Loss Feeder</p><div class="kpi-compact-values"><p class="kpi-value" id="tl-worst-feeder">F2</p></div></div></div>
+            </div>
+          </div>
+
+          <div class="grid-2 page-section">
+            <div class="panel">
+              <div class="panel-header"><h3>Loss Mix (Technical vs Non-Technical)</h3></div>
+              <div class="panel-body chart-container"><canvas id="tl-loss-mix-chart"></canvas></div>
+            </div>
+            <div class="panel">
+              <div class="panel-header"><h3>Feeder-wise Loss %</h3></div>
+              <div class="panel-body chart-container"><canvas id="tl-feeder-loss-chart"></canvas></div>
+            </div>
+          </div>
+
+          <div class="grid-2 page-section">
+            <div class="panel">
+              <div class="panel-header"><h3>Monthly Loss Trend</h3></div>
+              <div class="panel-body chart-container-lg"><canvas id="tl-monthly-trend-chart"></canvas></div>
+            </div>
+            <div class="panel">
+              <div class="panel-header"><h3>Region-wise Loss Contribution</h3></div>
+              <div class="panel-body chart-container-lg"><canvas id="tl-region-loss-chart"></canvas></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header"><h3>Loss Hotspots (Actionable)</h3></div>
+            <div class="panel-body p-0 overflow-x-auto">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Area</th>
+                    <th>Technical</th>
+                    <th>Non-Technical</th>
+                    <th>Total</th>
+                    <th>Priority</th>
+                  </tr>
+                </thead>
+                <tbody id="tl-hotspots-body"></tbody>
+              </table>
+            </div>
           </div>
         </section>
 
@@ -701,10 +936,155 @@
           </div>
         </section>
 
+        <!-- UPTIME MONITORING -->
+        <section id="view-uptime" class="view view-stack">
+          <div class="section-banner">
+            <i data-lucide="timer-reset" class="h-5 w-5"></i>
+            <div>
+              <h3>Uptime Monitoring</h3>
+              <p>Service availability, incident trend and downtime root cause analytics</p>
+            </div>
+          </div>
+
+          <div class="kpi-grid-compact">
+            <div class="kpi-card kpi-compact kpi-accent-green">
+              <div class="kpi-compact-row">
+                <div class="kpi-icon-wrap"><i data-lucide="shield-check" class="h-5 w-5"></i></div>
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">30d Uptime</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="up-uptime-pct">99.95%</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-orange">
+              <div class="kpi-compact-row">
+                <div class="kpi-icon-wrap"><i data-lucide="alert-triangle" class="h-5 w-5"></i></div>
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Incidents (30d)</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="up-incidents">4</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-blue">
+              <div class="kpi-compact-row">
+                <div class="kpi-icon-wrap"><i data-lucide="wrench" class="h-5 w-5"></i></div>
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">MTTR</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="up-mttr">18 min</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-teal">
+              <div class="kpi-compact-row">
+                <div class="kpi-icon-wrap"><i data-lucide="siren" class="h-5 w-5"></i></div>
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Active Alerts</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="up-active-alerts">1</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2 page-section">
+            <div class="panel">
+              <div class="panel-header"><h3>Daily Uptime Trend (30 Days)</h3></div>
+              <div class="panel-body chart-container-lg"><canvas id="uptime-trend-chart"></canvas></div>
+            </div>
+            <div class="panel">
+              <div class="panel-header"><h3>Downtime Root Cause Split</h3></div>
+              <div class="panel-body chart-container-lg"><canvas id="uptime-cause-chart"></canvas></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header"><h3>Recent Uptime Events</h3></div>
+            <div class="panel-body p-0 overflow-x-auto">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Service</th>
+                    <th>Region</th>
+                    <th>Status</th>
+                    <th>Duration</th>
+                  </tr>
+                </thead>
+                <tbody id="uptime-events-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- LIVE ALARMS -->
+        <section id="view-live-alarms" class="view view-stack">
+          <div class="section-banner">
+            <i data-lucide="bell-ring" class="h-5 w-5"></i>
+            <div>
+              <h3>Live Alarms Console</h3>
+              <p>Real-time alarm feed with acknowledge and shelve operations</p>
+            </div>
+          </div>
+
+          <div class="kpi-grid-compact">
+            <div class="kpi-card kpi-compact kpi-accent-red">
+              <div class="kpi-compact-row"><div class="kpi-compact-body"><p class="kpi-label">Active</p><div class="kpi-compact-values"><p class="kpi-value" id="alarm-active-count">0</p></div></div></div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-orange">
+              <div class="kpi-compact-row"><div class="kpi-compact-body"><p class="kpi-label">Unacked</p><div class="kpi-compact-values"><p class="kpi-value" id="alarm-unacked-count">0</p></div></div></div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-blue">
+              <div class="kpi-compact-row"><div class="kpi-compact-body"><p class="kpi-label">Critical (P1)</p><div class="kpi-compact-values"><p class="kpi-value" id="alarm-critical-count">0</p></div></div></div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-green">
+              <div class="kpi-compact-row"><div class="kpi-compact-body"><p class="kpi-label">Acknowledged</p><div class="kpi-compact-values"><p class="kpi-value" id="alarm-acked-count">0</p></div></div></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Alarm Events</h3>
+              <div class="panel-header-actions">
+                <button class="btn btn-secondary btn-sm alarm-filter-tab active" data-filter="active" type="button">Active (<span id="alarm-filter-active">0</span>)</button>
+                <button class="btn btn-secondary btn-sm alarm-filter-tab" data-filter="shelved" type="button">Shelved (<span id="alarm-filter-shelved">0</span>)</button>
+                <button class="btn btn-secondary btn-sm alarm-filter-tab" data-filter="timeline" type="button">Event Timeline</button>
+              </div>
+            </div>
+            <div class="panel-body p-0 overflow-x-auto">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Severity</th>
+                    <th>Time</th>
+                    <th>Source</th>
+                    <th>Message</th>
+                    <th>Ack</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="live-alarms-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
       </main>
     </div>
   </div>
 
+  <div id="chart-focus-overlay" class="chart-focus-overlay" hidden aria-modal="true" role="dialog" aria-labelledby="chart-focus-title">
+    <div class="chart-focus-shell">
+      <div class="chart-focus-header">
+        <h2 id="chart-focus-title" class="chart-focus-title">Chart</h2>
+        <button type="button" id="chart-focus-close" class="btn btn-secondary btn-sm chart-focus-close">
+          <i data-lucide="minimize-2" class="h-4 w-4"></i>
+          Exit Focus
+        </button>
+      </div>
+      <div id="chart-focus-content" class="chart-focus-content"></div>
+    </div>
+  </div>
+
+  <script src="unispur-data.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
