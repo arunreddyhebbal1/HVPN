@@ -33,7 +33,13 @@
       <div class="sidebar-header">
         <div class="sidebar-brand">
           <div class="sidebar-brand-icon">
-            <i data-lucide="zap" class="h-5 w-5 text-white"></i>
+            <img
+              src="hvpn-logo.png"
+              alt="HVPN"
+              class="sidebar-brand-logo"
+              width="36"
+              height="36"
+            />
           </div>
           <div class="sidebar-brand-text min-w-0">
             <h1>Grid Intelligence</h1>
@@ -46,14 +52,11 @@
       </div>
 
       <nav id="main-nav">
-        <p class="nav-section-label">Main</p>
         <button data-view="overview" class="nav-item active" title="Dashboard">
           <i data-lucide="layout-dashboard" class="nav-icon"></i>
           <span class="nav-label">Dashboard</span>
         </button>
-
-        <p class="nav-section-label">Analytics</p>
-        <button data-view="system-operation" class="nav-item" title="System Operation Analytics">
+        <button data-view="system-operation" class="nav-item" title="System Operation &amp; Transmission Loss">
           <i data-lucide="activity" class="nav-icon"></i>
           <span class="nav-label">System Operation</span>
         </button>
@@ -61,50 +64,22 @@
           <i data-lucide="gauge" class="nav-icon"></i>
           <span class="nav-label">Power Quality</span>
         </button>
-        <button data-view="load-analytics" class="nav-item" title="Load Analytics">
+        <button data-view="load-analytics" class="nav-item" title="Load Profile">
           <i data-lucide="line-chart" class="nav-icon"></i>
-          <span class="nav-label">Load Analytics</span>
-        </button>
-        <button data-view="transmission-loss" class="nav-item" title="Transmission Loss Analytics">
-          <i data-lucide="zap-off" class="nav-icon"></i>
-          <span class="nav-label">Transmission Loss</span>
-        </button>
-        <button data-view="fault-risk" class="nav-item" title="Fault &amp; Risk Analytics">
-          <i data-lucide="alert-octagon" class="nav-icon"></i>
-          <span class="nav-label">Fault &amp; Risk</span>
+          <span class="nav-label">Load Profile</span>
         </button>
         <button data-view="grid-reliability" class="nav-item" title="Grid Reliability">
           <i data-lucide="network" class="nav-icon"></i>
           <span class="nav-label">Grid Reliability</span>
         </button>
-        <button data-view="grid-intelligence" class="nav-item" title="Grid Intelligence">
-          <i data-lucide="brain" class="nav-icon"></i>
-          <span class="nav-label">Grid Intelligence</span>
+        <button data-view="live-alarms" class="nav-item" title="Alarms" aria-label="Alarms">
+          <span class="nav-icon-wrap">
+            <i data-lucide="bell-ring" class="nav-icon"></i>
+            <span class="nav-alarm-dot" id="nav-alarm-dot" hidden></span>
+          </span>
+          <span class="nav-label">Alarms</span>
+          <span class="nav-alarm-count" id="nav-alarm-count" hidden></span>
         </button>
-
-        <p class="nav-section-label">Operations</p>
-        <button data-view="overview" class="nav-item nav-alias" title="Substations" data-nav-alias="substations">
-          <i data-lucide="map-pin" class="nav-icon"></i>
-          <span class="nav-label">Substations</span>
-        </button>
-        <button data-view="asset-health" class="nav-item" title="Assets &amp; Maintenance">
-          <i data-lucide="hard-drive" class="nav-icon"></i>
-          <span class="nav-label">Assets</span>
-        </button>
-        <button data-view="asset-health" class="nav-item nav-alias" title="Maintenance" data-nav-alias="maintenance">
-          <i data-lucide="wrench" class="nav-icon"></i>
-          <span class="nav-label">Maintenance</span>
-        </button>
-        <button data-view="live-alarms" class="nav-item" title="Live Alarms">
-          <i data-lucide="bell-ring" class="nav-icon"></i>
-          <span class="nav-label">Live Alarms</span>
-        </button>
-        <button data-view="grid-intelligence" class="nav-item nav-alias" title="Compliance" data-nav-alias="compliance">
-          <i data-lucide="shield-check" class="nav-icon"></i>
-          <span class="nav-label">Compliance</span>
-        </button>
-
-        <p class="nav-section-label">Admin</p>
         <button data-view="fault-risk" class="nav-item nav-alias" title="Reports" data-nav-alias="reports">
           <i data-lucide="file-bar-chart" class="nav-icon"></i>
           <span class="nav-label">Reports</span>
@@ -243,6 +218,10 @@
               <i data-lucide="filter" class="h-4 w-4"></i>
               Apply
             </button>
+            <button id="filter-clear" class="btn btn-secondary" type="button">
+              <i data-lucide="x-circle" class="h-4 w-4"></i>
+              Clear All
+            </button>
           </div>
         </div>
       </header>
@@ -377,88 +356,160 @@
           </div>
         </section>
 
-        <!-- SYSTEM OPERATION ANALYTICS -->
+        <!-- SYSTEM OPERATION & TRANSMISSION LOSS -->
         <section id="view-system-operation" class="view view-stack">
-          <div class="section-banner">
-            <i data-lucide="activity" class="h-5 w-5"></i>
-            <div>
-              <h3>System Operation Analytics</h3>
-              <p>Transmission availability, power quality &amp; loss analysis</p>
+          <div class="kpi-grid-compact so-kpi-grid">
+            <div class="kpi-card kpi-compact kpi-accent-green">
+              <div class="kpi-compact-row">
+                <div class="kpi-icon-wrap"><i data-lucide="shield-check" class="h-4 w-4"></i></div>
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">System Uptime</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="availability-pct">99.82%</p></div>
+                  <p class="kpi-subtitle">Target ≥ 99.5%</p>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-orange">
+              <div class="kpi-compact-row">
+                <div class="kpi-icon-wrap"><i data-lucide="calendar-clock" class="h-4 w-4"></i></div>
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Planned Outage</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="planned-outage">0.12%</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-red">
+              <div class="kpi-compact-row">
+                <div class="kpi-icon-wrap"><i data-lucide="alert-triangle" class="h-4 w-4"></i></div>
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Forced Outage</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="forced-outage">0.06%</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-red">
+              <div class="kpi-compact-row">
+                <div class="kpi-icon-wrap"><i data-lucide="percent" class="h-4 w-4"></i></div>
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Total Loss</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="tl-total-loss">4.3%</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-blue">
+              <div class="kpi-compact-row">
+                <div class="kpi-icon-wrap"><i data-lucide="zap" class="h-4 w-4"></i></div>
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Technical Loss</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="tl-technical-loss">3.2%</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-orange">
+              <div class="kpi-compact-row">
+                <div class="kpi-icon-wrap"><i data-lucide="plug-zap" class="h-4 w-4"></i></div>
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Non-Technical Loss</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="tl-nontechnical-loss">1.1%</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-green">
+              <div class="kpi-compact-row">
+                <div class="kpi-icon-wrap"><i data-lucide="git-branch" class="h-4 w-4"></i></div>
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Highest Loss Feeder</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="tl-worst-feeder">F2</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2 page-section so-top-grid">
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Transmission Availability</h3>
+                <span class="badge badge-success" id="avail-status">Operational</span>
+              </div>
+              <div class="panel-body">
+                <div class="avail-chart-wrap"><canvas id="availability-sparkline"></canvas></div>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Power Quality</h3>
+                <span class="badge" id="grid-compliance-badge">Grid Code: PASS</span>
+              </div>
+              <div class="panel-body">
+                <div class="pq-grid pq-grid--compact">
+                  <div class="pq-metric">
+                    <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-thd-gauge"></canvas></div>
+                    <p class="pq-label">THD</p>
+                    <p class="pq-value" id="pq-thd-value">2.8%</p>
+                  </div>
+                  <div class="pq-metric">
+                    <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-voltage-gauge"></canvas></div>
+                    <p class="pq-label">Voltage</p>
+                    <p class="pq-value" id="pq-voltage-value">98.2%</p>
+                  </div>
+                  <div class="pq-metric">
+                    <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-flicker-gauge"></canvas></div>
+                    <p class="pq-label">Flicker</p>
+                    <p class="pq-value" id="pq-flicker-value">0.42</p>
+                  </div>
+                  <div class="pq-metric">
+                    <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-transient-gauge"></canvas></div>
+                    <p class="pq-label">Transients/hr</p>
+                    <p class="pq-value" id="pq-transient-value">3</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2 page-section">
+            <div class="panel">
+              <div class="panel-header"><h3>Loss Mix</h3></div>
+              <div class="panel-body chart-container"><canvas id="tl-loss-mix-chart"></canvas></div>
+            </div>
+            <div class="panel">
+              <div class="panel-header"><h3>Feeder-wise Loss</h3></div>
+              <div class="panel-body chart-container"><canvas id="tl-feeder-loss-chart"></canvas></div>
+            </div>
+          </div>
+
+          <div class="grid-2 page-section">
+            <div class="panel">
+              <div class="panel-header"><h3>Monthly Loss Trend</h3></div>
+              <div class="panel-body chart-container"><canvas id="tl-monthly-trend-chart"></canvas></div>
+            </div>
+            <div class="panel">
+              <div class="panel-header"><h3>Region-wise Loss</h3></div>
+              <div class="panel-body chart-container"><canvas id="tl-region-loss-chart"></canvas></div>
             </div>
           </div>
 
           <div class="panel">
-            <div class="panel-header">
-              <h3>Transmission System Availability</h3>
-              <span class="badge badge-success" id="avail-status">Operational</span>
-            </div>
-            <div class="panel-body">
-              <div class="avail-metrics">
-                <div>
-                  <p class="text-muted">Uptime (excl. planned/forced outages)</p>
-                  <p class="avail-value text-success" id="availability-pct">99.82%</p>
-                  <p class="text-muted text-sm">Target: ≥ 99.5%</p>
-                </div>
-                <div class="avail-side text-muted text-sm">
-                  <p>Planned: <span class="font-mono text-warning" id="planned-outage">0.12%</span></p>
-                  <p>Forced: <span class="font-mono text-danger" id="forced-outage">0.06%</span></p>
-                </div>
-              </div>
-              <div class="sparkline-wrap"><canvas id="availability-sparkline"></canvas></div>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-header">
-              <h3>Power Quality Analytics</h3>
-              <span class="badge" id="grid-compliance-badge">Grid Code: PASS</span>
-            </div>
-            <div class="panel-body">
-              <div class="pq-grid">
-                <div class="pq-metric">
-                  <div class="pq-gauge-wrap"><canvas id="pq-thd-gauge"></canvas></div>
-                  <p class="pq-label">Harmonic Pollution (THD)</p>
-                  <p class="pq-value" id="pq-thd-value">2.8%</p>
-                </div>
-                <div class="pq-metric">
-                  <div class="pq-gauge-wrap"><canvas id="pq-voltage-gauge"></canvas></div>
-                  <p class="pq-label">Voltage Stability</p>
-                  <p class="pq-value" id="pq-voltage-value">98.2%</p>
-                </div>
-                <div class="pq-metric">
-                  <div class="pq-gauge-wrap"><canvas id="pq-flicker-gauge"></canvas></div>
-                  <p class="pq-label">Flicker Index (Pst)</p>
-                  <p class="pq-value" id="pq-flicker-value">0.42</p>
-                </div>
-                <div class="pq-metric">
-                  <div class="pq-gauge-wrap"><canvas id="pq-transient-gauge"></canvas></div>
-                  <p class="pq-label">Transient Events / hr</p>
-                  <p class="pq-value" id="pq-transient-value">3</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-header"><h3>Transmission Loss Analysis</h3></div>
-            <div class="panel-body">
-              <div class="layout-grid-2">
-                <div class="chart-container"><canvas id="loss-pie-chart"></canvas></div>
-                <div class="chart-container"><canvas id="loss-stacked-chart"></canvas></div>
-              </div>
+            <div class="panel-header"><h3>Loss Hotspots</h3></div>
+            <div class="panel-body p-0 overflow-x-auto">
+              <table class="data-table data-table--compact">
+                <thead>
+                  <tr>
+                    <th>Area</th>
+                    <th>Technical</th>
+                    <th>Non-Technical</th>
+                    <th>Total</th>
+                    <th>Priority</th>
+                  </tr>
+                </thead>
+                <tbody id="tl-hotspots-body"></tbody>
+              </table>
             </div>
           </div>
         </section>
 
         <!-- POWER QUALITY ANALYTICS -->
         <section id="view-power-quality" class="view view-stack">
-          <div class="section-banner">
-            <i data-lucide="gauge" class="h-5 w-5"></i>
-            <div>
-              <h3>Power Quality Analytics</h3>
-              <p>THD, voltage stability, flicker and transient event monitoring with quality trends</p>
-            </div>
-          </div>
 
           <div class="panel">
             <div class="panel-header">
@@ -505,13 +556,6 @@
 
         <!-- LOAD ANALYTICS -->
         <section id="view-load-analytics" class="view view-stack">
-          <div class="section-banner">
-            <i data-lucide="line-chart" class="h-5 w-5"></i>
-            <div>
-              <h3>Load Analytics</h3>
-              <p>Real-time load profiles, feeder analysis &amp; short-term load forecasting (STLF)</p>
-            </div>
-          </div>
 
           <div class="kpi-grid-compact">
             <div class="kpi-card kpi-compact kpi-accent-blue">
@@ -662,81 +706,8 @@
 
         </section>
 
-        <!-- TRANSMISSION LOSS ANALYTICS -->
-        <section id="view-transmission-loss" class="view view-stack">
-          <div class="section-banner">
-            <i data-lucide="zap-off" class="h-5 w-5"></i>
-            <div>
-              <h3>Transmission Loss Analytics</h3>
-              <p>Technical/non-technical loss trends, feeder hotspots and region-wise loss concentration</p>
-            </div>
-          </div>
-
-          <div class="kpi-grid-compact">
-            <div class="kpi-card kpi-compact kpi-accent-red">
-              <div class="kpi-compact-row"><div class="kpi-compact-body"><p class="kpi-label">Total Loss</p><div class="kpi-compact-values"><p class="kpi-value" id="tl-total-loss">4.3%</p></div></div></div>
-            </div>
-            <div class="kpi-card kpi-compact kpi-accent-blue">
-              <div class="kpi-compact-row"><div class="kpi-compact-body"><p class="kpi-label">Technical Loss</p><div class="kpi-compact-values"><p class="kpi-value" id="tl-technical-loss">3.2%</p></div></div></div>
-            </div>
-            <div class="kpi-card kpi-compact kpi-accent-orange">
-              <div class="kpi-compact-row"><div class="kpi-compact-body"><p class="kpi-label">Non-Technical Loss</p><div class="kpi-compact-values"><p class="kpi-value" id="tl-nontechnical-loss">1.1%</p></div></div></div>
-            </div>
-            <div class="kpi-card kpi-compact kpi-accent-green">
-              <div class="kpi-compact-row"><div class="kpi-compact-body"><p class="kpi-label">Highest Loss Feeder</p><div class="kpi-compact-values"><p class="kpi-value" id="tl-worst-feeder">F2</p></div></div></div>
-            </div>
-          </div>
-
-          <div class="grid-2 page-section">
-            <div class="panel">
-              <div class="panel-header"><h3>Loss Mix (Technical vs Non-Technical)</h3></div>
-              <div class="panel-body chart-container"><canvas id="tl-loss-mix-chart"></canvas></div>
-            </div>
-            <div class="panel">
-              <div class="panel-header"><h3>Feeder-wise Loss %</h3></div>
-              <div class="panel-body chart-container"><canvas id="tl-feeder-loss-chart"></canvas></div>
-            </div>
-          </div>
-
-          <div class="grid-2 page-section">
-            <div class="panel">
-              <div class="panel-header"><h3>Monthly Loss Trend</h3></div>
-              <div class="panel-body chart-container-lg"><canvas id="tl-monthly-trend-chart"></canvas></div>
-            </div>
-            <div class="panel">
-              <div class="panel-header"><h3>Region-wise Loss Contribution</h3></div>
-              <div class="panel-body chart-container-lg"><canvas id="tl-region-loss-chart"></canvas></div>
-            </div>
-          </div>
-
-          <div class="panel">
-            <div class="panel-header"><h3>Loss Hotspots (Actionable)</h3></div>
-            <div class="panel-body p-0 overflow-x-auto">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Area</th>
-                    <th>Technical</th>
-                    <th>Non-Technical</th>
-                    <th>Total</th>
-                    <th>Priority</th>
-                  </tr>
-                </thead>
-                <tbody id="tl-hotspots-body"></tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
         <!-- ASSET HEALTH & PREDICTIVE MAINTENANCE -->
         <section id="view-asset-health" class="view view-stack">
-          <div class="section-banner section-banner-b">
-            <i data-lucide="heart-pulse" class="h-5 w-5"></i>
-            <div>
-              <h3>Category B — Asset Health &amp; Predictive Maintenance Analytics</h3>
-              <p>AHI monitoring, RUL estimation, flashover risk, anomaly detection &amp; failure prediction</p>
-            </div>
-          </div>
 
           <!-- 1. AHI Dashboard -->
           <div class="panel">
@@ -817,13 +788,6 @@
 
         <!-- FAULT & RISK ANALYTICS (C) -->
         <section id="view-fault-risk" class="view view-stack">
-          <div class="section-banner section-banner-c">
-            <i data-lucide="alert-octagon" class="h-5 w-5 shrink-0"></i>
-            <div>
-              <h3>Category C — Fault &amp; Risk Analytics</h3>
-              <p>Fault-prone equipment identification and loss-prone area detection</p>
-            </div>
-          </div>
 
           <div class="layout-grid-2">
             <div class="panel">
@@ -868,13 +832,6 @@
 
         <!-- GRID RELIABILITY & PLANNING (D) -->
         <section id="view-grid-reliability" class="view view-stack">
-          <div class="section-banner section-banner-d">
-            <i data-lucide="network" class="h-5 w-5 shrink-0"></i>
-            <div>
-              <h3>Category D — Grid Reliability &amp; Planning Analytics</h3>
-              <p>Reliability indices, asset utilization, aging profiles &amp; maintenance costs</p>
-            </div>
-          </div>
 
           <div class="panel">
             <div class="panel-header"><h3>D1 — Grid Reliability Indices</h3></div>
@@ -902,13 +859,6 @@
 
         <!-- GRID INTELLIGENCE (E) -->
         <section id="view-grid-intelligence" class="view view-stack">
-          <div class="section-banner section-banner-e">
-            <i data-lucide="brain" class="h-5 w-5 shrink-0"></i>
-            <div>
-              <h3>Category E — Grid Intelligence Analytics</h3>
-              <p>Lost load quantification and regulatory compliance monitoring</p>
-            </div>
-          </div>
 
           <div class="grid-intel">
             <div class="panel">
@@ -938,13 +888,6 @@
 
         <!-- UPTIME MONITORING -->
         <section id="view-uptime" class="view view-stack">
-          <div class="section-banner">
-            <i data-lucide="timer-reset" class="h-5 w-5"></i>
-            <div>
-              <h3>Uptime Monitoring</h3>
-              <p>Service availability, incident trend and downtime root cause analytics</p>
-            </div>
-          </div>
 
           <div class="kpi-grid-compact">
             <div class="kpi-card kpi-compact kpi-accent-green">
@@ -1017,13 +960,6 @@
 
         <!-- LIVE ALARMS -->
         <section id="view-live-alarms" class="view view-stack">
-          <div class="section-banner">
-            <i data-lucide="bell-ring" class="h-5 w-5"></i>
-            <div>
-              <h3>Live Alarms Console</h3>
-              <p>Real-time alarm feed with acknowledge and shelve operations</p>
-            </div>
-          </div>
 
           <div class="kpi-grid-compact">
             <div class="kpi-card kpi-compact kpi-accent-red">

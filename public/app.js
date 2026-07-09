@@ -82,16 +82,15 @@
 
   const VIEW_TITLES = {
     overview: 'Dashboard Overview',
-    'system-operation': 'System Operation Analytics',
+    'system-operation': 'System Operation & Transmission Loss',
     'power-quality': 'Power Quality Analytics',
-    'load-analytics': 'Load Analytics',
-    'transmission-loss': 'Transmission Loss Analytics',
+    'load-analytics': 'Load Profile',
     'asset-health': 'Asset Health & Predictive Maintenance',
     'fault-risk': 'Fault & Risk Analytics',
     'grid-reliability': 'Grid Reliability & Planning',
     'grid-intelligence': 'Grid Intelligence Analytics',
     uptime: 'Uptime Monitoring',
-    'live-alarms': 'Live Alarms Console',
+    'live-alarms': 'Alarms',
   };
 
   // ─── Utilities ───────────────────────────────────────────────────────
@@ -212,6 +211,31 @@
     return result;
   }
 
+  function getAvailabilityChartLabels(count) {
+    const now = new Date();
+    return Array.from({ length: count }, (_, i) => {
+      const d = new Date(now);
+      d.setHours(d.getHours() - (count - 1 - i));
+      return `${String(d.getHours()).padStart(2, '0')}:00`;
+    });
+  }
+
+  function syncAvailabilityChart(animate) {
+    const chart = state.charts.availSpark;
+    if (!chart) return;
+    const count = 24;
+    const hist = state.data.availabilityHistory.slice(-count);
+    while (hist.length < count) {
+      hist.unshift({ planned: 0.1, forced: 0.05 });
+    }
+    chart.data.labels = getAvailabilityChartLabels(count);
+    chart.data.datasets[0].data = hist.map((h) => h.planned);
+    chart.data.datasets[1].data = hist.map((h) => h.forced);
+    const maxVal = Math.max(...hist.map((h) => h.planned + h.forced), 0.12);
+    chart.options.scales.y.suggestedMax = Math.ceil(maxVal * 20) / 20 + 0.05;
+    chart.update(animate ? 'default' : 'none');
+  }
+
   function applyTimeFilterToChartScales(chart, filter, animate) {
     if (!chart?.options?.scales) return;
     if (!chart.options.scales.x) chart.options.scales.x = {};
@@ -276,35 +300,12 @@
       applyTimeFilterToChartScales(state.charts.loadForecast, filter, animate);
     }
 
-    if (state.charts.availSpark) {
-      const hist = data.availabilityHistory.map((h) => h.planned + h.forced);
-      state.charts.availSpark.data.labels = loadSeries.labels;
-      state.charts.availSpark.data.datasets[0].data = resampleSeries(
-        data.availabilityHistory.map((h) => h.planned),
-        filter
-      );
-      state.charts.availSpark.data.datasets[1].data = resampleSeries(
-        data.availabilityHistory.map((h) => h.forced),
-        filter
-      );
-      applyTimeFilterToChartScales(state.charts.availSpark, filter, animate);
-      void hist;
-    }
-
     if (state.charts.pqTrend) {
       const trend = data.powerQualityTrend;
       state.charts.pqTrend.data.labels = loadSeries.labels;
       state.charts.pqTrend.data.datasets[0].data = resampleSeries(trend.thd, filter);
       state.charts.pqTrend.data.datasets[1].data = resampleSeries(trend.flicker, filter);
       applyTimeFilterToChartScales(state.charts.pqTrend, filter, animate);
-    }
-
-    if (state.charts.tlMonthlyTrend) {
-      const m = data.losses.monthly;
-      state.charts.tlMonthlyTrend.data.labels = loadSeries.labels;
-      state.charts.tlMonthlyTrend.data.datasets[0].data = resampleSeries(m.technical, filter);
-      state.charts.tlMonthlyTrend.data.datasets[1].data = resampleSeries(m.nonTechnical, filter);
-      applyTimeFilterToChartScales(state.charts.tlMonthlyTrend, filter, animate);
     }
 
     if (state.charts.maintCost) {
@@ -339,11 +340,46 @@
     applyChartTimeFilter(true);
   }
 
+  function refreshAllCharts() {
+    Object.values(state.charts).forEach((chart) => {
+      if (!chart?.resize) return;
+      chart.resize();
+      chart.update('none');
+    });
+  }
+
+  function refreshActiveViewCharts() {
+    const view = document.querySelector('.view.active');
+    if (view) resizeChartsInElement(view);
+    else refreshAllCharts();
+  }
+
+  function scheduleChartRefresh() {
+    requestAnimationFrame(() => {
+      refreshActiveViewCharts();
+      requestAnimationFrame(refreshActiveViewCharts);
+    });
+    setTimeout(refreshActiveViewCharts, 50);
+    setTimeout(refreshActiveViewCharts, 200);
+  }
+
   function resizeChartsInElement(root) {
     if (!root) return;
     root.querySelectorAll('canvas').forEach((canvas) => {
       const chart = Chart.getChart(canvas);
-      if (chart) chart.resize();
+      if (chart) {
+        chart.resize();
+        chart.update();
+      }
+    });
+  }
+
+  function refreshChartsInView(viewEl) {
+    if (!viewEl) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        resizeChartsInElement(viewEl);
+      });
     });
   }
 
@@ -961,33 +997,85 @@
       },
     });
 
-    // Availability sparkline
+    // Availability outage trend (24h)
+    const availCount = 24;
+    const availHist = state.data.availabilityHistory.slice(-availCount);
+    while (availHist.length < availCount) {
+      availHist.unshift({ planned: rand(0.05, 0.2), forced: rand(0.02, 0.12) });
+    }
     state.charts.availSpark = new Chart(document.getElementById('availability-sparkline'), {
       type: 'bar',
       data: {
-        labels: state.data.availabilityHistory.map((_, i) => i),
+        labels: getAvailabilityChartLabels(availCount),
         datasets: [
           {
-            label: 'Planned',
-            data: state.data.availabilityHistory.map((h) => h.planned),
+            label: 'Planned Outage',
+            data: availHist.map((h) => h.planned),
             backgroundColor: '#f59e0b',
-            borderRadius: 1,
+            borderRadius: 2,
+            barPercentage: 0.85,
+            categoryPercentage: 0.9,
           },
           {
-            label: 'Forced',
-            data: state.data.availabilityHistory.map((h) => h.forced),
+            label: 'Forced Outage',
+            data: availHist.map((h) => h.forced),
             backgroundColor: '#ef4444',
-            borderRadius: 1,
+            borderRadius: 2,
+            barPercentage: 0.85,
+            categoryPercentage: 0.9,
           },
         ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: d.tooltip },
+        layout: { padding: { top: 4, bottom: 4, left: 0, right: 4 } },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            align: 'center',
+            labels: {
+              color: d.color,
+              font: { size: 10 },
+              boxWidth: 10,
+              padding: 14,
+              usePointStyle: true,
+              pointStyle: 'rectRounded',
+            },
+          },
+          tooltip: d.tooltip,
+        },
         scales: {
-          x: { stacked: true, display: false },
-          y: { stacked: true, display: false },
+          x: {
+            stacked: true,
+            grid: { display: false },
+            ticks: {
+              color: d.color,
+              font: { size: 9 },
+              maxTicksLimit: 8,
+              maxRotation: 0,
+              autoSkip: true,
+            },
+          },
+          y: {
+            stacked: true,
+            beginAtZero: true,
+            suggestedMax: 0.35,
+            grid: { ...d.grid, drawBorder: false },
+            ticks: {
+              color: d.color,
+              font: { size: 9 },
+              maxTicksLimit: 5,
+              callback: (v) => `${v}%`,
+            },
+            title: {
+              display: true,
+              text: 'Outage %',
+              color: d.color,
+              font: { size: 10, weight: '600' },
+            },
+          },
         },
       },
     });
@@ -1363,74 +1451,6 @@
       },
     });
 
-    // Loss pie
-    state.charts.lossPie = new Chart(document.getElementById('loss-pie-chart'), {
-      type: 'doughnut',
-      data: {
-        labels: ['Technical', 'Non-Technical'],
-        datasets: [{
-          data: [state.data.losses.technical, state.data.losses.nonTechnical],
-          backgroundColor: ['#06b6d4', '#f59e0b'],
-          borderWidth: 0,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom', labels: { color: d.color } },
-          tooltip: d.tooltip,
-          title: { display: true, text: 'Technical vs Non-Technical (%)', color: d.color, font: { size: 12 } },
-        },
-      },
-    });
-
-    // Loss stacked bar
-    state.charts.lossStacked = new Chart(document.getElementById('loss-stacked-chart'), {
-      type: 'bar',
-      data: {
-        labels: ['Feeder-wise', 'Region-wise'],
-        datasets: [
-          ...Object.entries(state.data.losses.feeders).map(([k, v], i) => ({
-            label: k,
-            data: i === 0 ? [v, 0] : i === 1 ? [0, 0] : [0, 0],
-          })),
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { labels: { color: d.color } },
-          tooltip: d.tooltip,
-          title: { display: true, text: 'Loss Breakdown (%)', color: d.color, font: { size: 12 } },
-        },
-        scales: {
-          x: { stacked: true, ticks: d.ticks, grid: d.grid },
-          y: { stacked: true, ticks: d.ticks, grid: d.grid },
-        },
-      },
-    });
-
-    // Rebuild loss stacked with proper data
-    const feederColors = ['#06b6d4', '#8b5cf6', '#22c55e', '#f59e0b'];
-    const regionColors = ['#06b6d4', '#8b5cf6', '#22c55e', '#f59e0b'];
-    state.charts.lossStacked.data.datasets = [
-      ...Object.entries(state.data.losses.feeders).map(([k, v], i) => ({
-        label: `Feeder ${k}`,
-        data: [v, 0],
-        backgroundColor: feederColors[i],
-        borderRadius: 2,
-      })),
-      ...Object.entries(state.data.losses.regions).map(([k, v], i) => ({
-        label: `Region ${k}`,
-        data: [0, v],
-        backgroundColor: regionColors[i],
-        borderRadius: 2,
-      })),
-    ];
-    state.charts.lossStacked.update();
-
     // Failure rank
     state.charts.failureRank = new Chart(document.getElementById('failure-rank-chart'), {
       type: 'bar',
@@ -1646,6 +1666,7 @@
         plugins: { legend: { position: 'bottom', labels: { color: d.color } }, tooltip: d.tooltip },
       },
     });
+    scheduleChartRefresh();
   }
 
   // ─── DOM Updates ───────────────────────────────────────────────────────
@@ -1893,6 +1914,44 @@
     return `${hr}h ago`;
   }
 
+  function updateAlarmNavIndicator() {
+    const navBtn = document.querySelector('.nav-item[data-view="live-alarms"]');
+    const dot = document.getElementById('nav-alarm-dot');
+    const countEl = document.getElementById('nav-alarm-count');
+    if (!navBtn || !dot) return;
+
+    const active = state.liveAlarms.filter((a) => !a.shelved);
+    const unacked = active.filter((a) => !a.acked);
+    const hasCritical = unacked.some((a) => a.severity === 'p1' || a.severity === 'p2');
+    const onAlarmsView = state.currentView === 'live-alarms';
+    const shouldNotify = unacked.length > 0 && !onAlarmsView;
+
+    dot.hidden = !active.length;
+    dot.classList.toggle('is-blink', shouldNotify);
+    dot.classList.toggle('is-critical', hasCritical && shouldNotify);
+
+    if (countEl) {
+      const showCount = unacked.length > 0;
+      countEl.hidden = !showCount;
+      if (showCount) {
+        countEl.textContent = unacked.length > 99 ? '99+' : String(unacked.length);
+        countEl.classList.toggle('is-blink', shouldNotify);
+      } else {
+        countEl.classList.remove('is-blink');
+      }
+    }
+
+    navBtn.classList.toggle('has-active-alarms', shouldNotify);
+    navBtn.setAttribute(
+      'aria-label',
+      unacked.length
+        ? `Alarms — ${unacked.length} unacknowledged active alarm${unacked.length === 1 ? '' : 's'}`
+        : active.length
+          ? `Alarms — ${active.length} active`
+          : 'Alarms',
+    );
+  }
+
   function renderLiveAlarms() {
     const alarms = state.liveAlarms;
     const active = alarms.filter((a) => !a.shelved);
@@ -1934,6 +1993,8 @@
         </td>
       </tr>
     `).join('');
+
+    updateAlarmNavIndicator();
   }
 
   function updateDOM() {
@@ -2304,13 +2365,11 @@
       state.charts.ovHealth.update('none');
     }
 
-    // Availability sparkline
+    // Availability chart
     if (state.charts.availSpark) {
       state.data.availabilityHistory.push({ planned: data.plannedOutage, forced: data.forcedOutage });
-      if (state.data.availabilityHistory.length > 30) state.data.availabilityHistory.shift();
-      state.charts.availSpark.data.datasets[0].data = state.data.availabilityHistory.map((h) => h.planned);
-      state.charts.availSpark.data.datasets[1].data = state.data.availabilityHistory.map((h) => h.forced);
-      state.charts.availSpark.update('none');
+      if (state.data.availabilityHistory.length > 48) state.data.availabilityHistory.shift();
+      syncAvailabilityChart(false);
     }
 
     // Load profile — feeder ratio handled in applyChartTimeFilter
@@ -2355,6 +2414,10 @@
       m.nonTechnical.push(clamp(data.losses.nonTechnical + rand(-0.05, 0.05), 0.7, 1.8));
       if (m.technical.length > m.labels.length) m.technical.shift();
       if (m.nonTechnical.length > m.labels.length) m.nonTechnical.shift();
+      state.charts.tlMonthlyTrend.data.labels = m.labels;
+      state.charts.tlMonthlyTrend.data.datasets[0].data = m.technical;
+      state.charts.tlMonthlyTrend.data.datasets[1].data = m.nonTechnical;
+      state.charts.tlMonthlyTrend.update('none');
     }
 
     if (state.charts.tlRegionLoss) {
@@ -2403,12 +2466,6 @@
         data.pqEvents.harmonics,
       ];
       state.charts.pqEvents.update('none');
-    }
-
-    // Loss charts
-    if (state.charts.lossPie) {
-      state.charts.lossPie.data.datasets[0].data = [data.losses.technical, data.losses.nonTechnical];
-      state.charts.lossPie.update('none');
     }
 
     // Failure rank
@@ -2952,6 +3009,21 @@
     state.filters.substation = document.getElementById('filter-substation').value;
     initMockData();
     updateDOM();
+    scheduleChartRefresh();
+  }
+
+  function clearAllFilters() {
+    state.filters.zone = 'north-circle';
+    state.filters.division = 'div-n1';
+    state.filters.substation = 'alpha-1';
+    state.filters.dateRange = drpDefaultRange();
+    populateZoneFilter();
+    populateDivisionFilter();
+    populateSubstationFilter();
+    drpUpdateTriggerLabel();
+    initMockData();
+    updateDOM();
+    scheduleChartRefresh();
   }
 
   // ─── Sidebar ─────────────────────────────────────────────────────────
@@ -2996,9 +3068,8 @@
     if (overlay) overlay.remove();
 
     requestAnimationFrame(() => {
-      Object.values(state.charts).forEach((chart) => {
-        if (chart && typeof chart.resize === 'function') chart.resize();
-      });
+      scheduleChartRefresh();
+      updateAlarmNavIndicator();
       lucide.createIcons();
     });
   }
@@ -3073,6 +3144,7 @@
     });
 
     document.getElementById('filter-apply').addEventListener('click', applyFilters);
+    document.getElementById('filter-clear').addEventListener('click', clearAllFilters);
 
     document.querySelectorAll('.chart-time-filter').forEach((sel) => {
       sel.addEventListener('change', (e) => setChartTimeFilter(e.target.value));
@@ -3106,6 +3178,13 @@
     bindEvents();
     startClock();
     updateDOM();
+    scheduleChartRefresh();
+
+    const mainContent = document.getElementById('main-content');
+    if (mainContent && typeof ResizeObserver !== 'undefined') {
+      const chartResizeObserver = new ResizeObserver(() => scheduleChartRefresh());
+      chartResizeObserver.observe(mainContent);
+    }
 
     // Live data refresh every 3 seconds
     setInterval(() => {
