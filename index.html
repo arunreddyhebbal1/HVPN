@@ -52,46 +52,107 @@
       </div>
 
       <nav id="main-nav">
-        <button data-view="overview" class="nav-item active" title="Dashboard">
-          <i data-lucide="layout-dashboard" class="nav-icon"></i>
-          <span class="nav-label">Dashboard</span>
+        <button
+          id="nav-grid-analytics-toggle"
+          class="nav-item nav-group-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="nav-grid-analytics-group"
+          data-nav-group-target="nav-grid-analytics-group"
+          title="Grid Analytics"
+        >
+          <i data-lucide="layout-grid" class="nav-icon"></i>
+          <span class="nav-label">Grid Analytics</span>
+          <i data-lucide="chevron-down" class="nav-chevron" aria-hidden="true"></i>
         </button>
-        <button data-view="system-operation" class="nav-item" title="System Operation &amp; Transmission Loss">
-          <i data-lucide="activity" class="nav-icon"></i>
-          <span class="nav-label">System Operation</span>
+
+        <div id="nav-grid-analytics-group" class="nav-group" aria-label="Grid Analytics menu">
+          <button data-view="overview" class="nav-item active" title="Dashboard">
+            <i data-lucide="layout-dashboard" class="nav-icon"></i>
+            <span class="nav-label">Dashboard</span>
+          </button>
+          <button data-view="system-operation" class="nav-item" title="System Operation &amp; Transmission Loss">
+            <i data-lucide="activity" class="nav-icon"></i>
+            <span class="nav-label">System Operation</span>
+          </button>
+          <button data-view="power-quality" class="nav-item" title="Power Quality Analytics">
+            <i data-lucide="gauge" class="nav-icon"></i>
+            <span class="nav-label">Power Quality</span>
+          </button>
+          <button data-view="load-analytics" class="nav-item" title="Load Profile">
+            <i data-lucide="line-chart" class="nav-icon"></i>
+            <span class="nav-label">Load Profile</span>
+          </button>
+          <button data-view="grid-reliability" class="nav-item" title="Grid Reliability">
+            <i data-lucide="network" class="nav-icon"></i>
+            <span class="nav-label">Grid Reliability</span>
+          </button>
+          <button data-view="live-alarms" class="nav-item" title="Alarms" aria-label="Alarms">
+            <span class="nav-icon-wrap">
+              <i data-lucide="bell-ring" class="nav-icon"></i>
+              <span class="nav-alarm-dot" id="nav-alarm-dot" hidden></span>
+            </span>
+            <span class="nav-label">Alarms</span>
+            <span class="nav-alarm-count" id="nav-alarm-count" hidden></span>
+          </button>
+          <button data-view="fault-risk" class="nav-item nav-alias" title="Reports" data-nav-alias="reports">
+            <i data-lucide="file-bar-chart" class="nav-icon"></i>
+            <span class="nav-label">Reports</span>
+          </button>
+          <button data-view="uptime" class="nav-item" title="Uptime Monitoring">
+            <i data-lucide="timer-reset" class="nav-icon"></i>
+            <span class="nav-label">Uptime</span>
+          </button>
+          <button data-view="settings" class="nav-item" title="Settings &amp; Access Control">
+            <i data-lucide="settings" class="nav-icon"></i>
+            <span class="nav-label">Settings</span>
+          </button>
+        </div>
+
+        <button
+          id="nav-tsa-toggle"
+          class="nav-item nav-group-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="nav-tsa-group"
+          data-nav-group-target="nav-tsa-group"
+          title="TSA"
+        >
+          <i data-lucide="folders" class="nav-icon"></i>
+          <span class="nav-label">TSA</span>
+          <i data-lucide="chevron-down" class="nav-chevron" aria-hidden="true"></i>
         </button>
-        <button data-view="power-quality" class="nav-item" title="Power Quality Analytics">
-          <i data-lucide="gauge" class="nav-icon"></i>
-          <span class="nav-label">Power Quality</span>
-        </button>
-        <button data-view="load-analytics" class="nav-item" title="Load Profile">
-          <i data-lucide="line-chart" class="nav-icon"></i>
-          <span class="nav-label">Load Profile</span>
-        </button>
-        <button data-view="grid-reliability" class="nav-item" title="Grid Reliability">
-          <i data-lucide="network" class="nav-icon"></i>
-          <span class="nav-label">Grid Reliability</span>
-        </button>
-        <button data-view="live-alarms" class="nav-item" title="Alarms" aria-label="Alarms">
-          <span class="nav-icon-wrap">
-            <i data-lucide="bell-ring" class="nav-icon"></i>
-            <span class="nav-alarm-dot" id="nav-alarm-dot" hidden></span>
-          </span>
-          <span class="nav-label">Alarms</span>
-          <span class="nav-alarm-count" id="nav-alarm-count" hidden></span>
-        </button>
-        <button data-view="fault-risk" class="nav-item nav-alias" title="Reports" data-nav-alias="reports">
-          <i data-lucide="file-bar-chart" class="nav-icon"></i>
-          <span class="nav-label">Reports</span>
-        </button>
-        <button data-view="overview" class="nav-item nav-alias" title="Settings" data-nav-alias="settings">
-          <i data-lucide="settings" class="nav-icon"></i>
-          <span class="nav-label">Settings</span>
-        </button>
-        <button data-view="uptime" class="nav-item" title="Uptime Monitoring">
-          <i data-lucide="timer-reset" class="nav-icon"></i>
-          <span class="nav-label">Uptime</span>
-        </button>
+
+        <div id="nav-tsa-group" class="nav-group" aria-label="TSA menu">
+          <button type="button" data-view="tsa-executive-summary" class="nav-item nav-submenu-item" title="Executive Summary">
+            <i data-lucide="file-text" class="nav-icon"></i>
+            <span class="nav-label">Excutive Summary</span>
+          </button>
+          <button type="button" data-view="tsa-ac-lines" class="nav-item nav-submenu-item" title="AC Transmission Lines">
+            <i data-lucide="line-chart" class="nav-icon"></i>
+            <span class="nav-label">AC Transmission Lines</span>
+          </button>
+          <button type="button" data-view="tsa-ict" class="nav-item nav-submenu-item" title="Inter-Connecting Transformers">
+            <i data-lucide="workflow" class="nav-icon"></i>
+            <span class="nav-label">Inter-Connecting Transformers</span>
+          </button>
+          <button type="button" data-view="tsa-reactive" class="nav-item nav-submenu-item" title="Reactive Assets">
+            <i data-lucide="zap" class="nav-icon"></i>
+            <span class="nav-label">Reactive Assets</span>
+          </button>
+          <button type="button" data-view="tsa-outage-analytics" class="nav-item nav-submenu-item" title="Outage Analytics">
+            <i data-lucide="bar-chart-3" class="nav-icon"></i>
+            <span class="nav-label">Outage Analytics</span>
+          </button>
+          <button type="button" data-view="tsa-deemed-exempt" class="nav-item nav-submenu-item" title="Deemed/Exempt Rigister">
+            <i data-lucide="book-open-check" class="nav-icon"></i>
+            <span class="nav-label">Deemed/Exempt Rigister</span>
+          </button>
+          <button type="button" data-view="tsa-tripping-register" class="nav-item nav-submenu-item" title="Tripping Register">
+            <i data-lucide="clipboard-list" class="nav-icon"></i>
+            <span class="nav-label">Tripping Register</span>
+          </button>
+        </div>
       </nav>
 
       <div class="sidebar-footer">
@@ -308,7 +369,18 @@
           <div class="grid-2 page-section">
             <div class="panel">
               <div class="panel-header"><h3>Asset Health Distribution</h3></div>
-              <div class="panel-body chart-container"><canvas id="ov-health-chart"></canvas></div>
+              <div class="panel-body donut-split-body">
+                <div class="donut-split-layout">
+                  <ul class="donut-split-legend" id="ov-health-legend" aria-label="Asset health legend"></ul>
+                  <div class="donut-split-chart-wrap">
+                    <canvas id="ov-health-chart" aria-label="Asset health distribution donut"></canvas>
+                    <div class="donut-split-center" aria-hidden="true">
+                      <span>Asset Health</span>
+                      <span>Distribution</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="panel">
               <div class="panel-header">
@@ -935,7 +1007,18 @@
             </div>
             <div class="panel">
               <div class="panel-header"><h3>Downtime Root Cause Split</h3></div>
-              <div class="panel-body chart-container-lg"><canvas id="uptime-cause-chart"></canvas></div>
+              <div class="panel-body donut-split-body">
+                <div class="donut-split-layout">
+                  <ul class="donut-split-legend" id="uptime-cause-legend" aria-label="Root cause legend"></ul>
+                  <div class="donut-split-chart-wrap">
+                    <canvas id="uptime-cause-chart" aria-label="Downtime root cause split donut"></canvas>
+                    <div class="donut-split-center" aria-hidden="true">
+                      <span>Root Cause</span>
+                      <span>Split</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -998,6 +1081,603 @@
                   </tr>
                 </thead>
                 <tbody id="live-alarms-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- TSA — EXECUTIVE SUMMARY (new view; does not alter existing views) -->
+        <section id="view-tsa-executive-summary" class="view view-stack">
+          <div class="grid-5 page-section tsa-kpi-row">
+            <div class="kpi-card kpi-compact kpi-accent-green">
+              <div class="kpi-compact-row">
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Monthly TAFM</p>
+                  <div class="kpi-compact-values">
+                    <p class="kpi-value" id="tsa-kpi-tafm">99.64%</p>
+                  </div>
+                  <p class="kpi-subtitle">Target 98.5%</p>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-green">
+              <div class="kpi-compact-row">
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Gap vs Target</p>
+                  <div class="kpi-compact-values">
+                    <p class="kpi-value" id="tsa-kpi-gap">1.14 pp</p>
+                  </div>
+                  <p class="kpi-subtitle">Incentive band</p>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-blue">
+              <div class="kpi-compact-row">
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Elements Monitored</p>
+                  <div class="kpi-compact-values">
+                    <p class="kpi-value" id="tsa-kpi-elements">19</p>
+                  </div>
+                  <p class="kpi-subtitle">10 lines · 6 ICTs · 3 reactive</p>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-orange">
+              <div class="kpi-compact-row">
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Countable Outage</p>
+                  <div class="kpi-compact-values">
+                    <p class="kpi-value" id="tsa-kpi-outage">85.2 hr</p>
+                  </div>
+                  <p class="kpi-subtitle">Effective, per doc §G/H/I</p>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-orange">
+              <div class="kpi-compact-row">
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Repeat-Trip Elements</p>
+                  <div class="kpi-compact-values">
+                    <p class="kpi-value" id="tsa-kpi-repeat">3</p>
+                  </div>
+                  <p class="kpi-subtitle">&gt;2 trips in FY</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2-1 page-section">
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Compiled TAFM vs Target</h3>
+              </div>
+              <div class="panel-body chart-container-lg">
+                <canvas id="tsa-tafm-trend-chart" aria-label="Compiled TAFM versus target"></canvas>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Current-Month TAFM</h3>
+              </div>
+              <div class="panel-body">
+                <div class="tsa-gauge-wrap">
+                  <canvas id="tsa-tafm-gauge-chart" aria-label="Current month TAFM gauge"></canvas>
+                  <div class="tsa-gauge-center">
+                    <p class="tsa-gauge-value" id="tsa-gauge-value">99.64%</p>
+                    <p class="tsa-gauge-period" id="tsa-gauge-period">AUG 2023</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tsa-bottom-grid page-section">
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Availability Category</h3>
+              </div>
+              <div class="panel-body chart-container">
+                <canvas id="tsa-avail-category-chart" aria-label="Availability category distribution"></canvas>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Regulatory Notes</h3>
+              </div>
+              <div class="panel-body">
+                <ul class="tsa-notes-list" id="tsa-regulatory-notes">
+                  <li><span class="tsa-note-ref">§4.A —</span> TAFM computed as availability of transmission elements over the month, net of allowable deductions.</li>
+                  <li><span class="tsa-note-ref">§G —</span> Planned outages deducted only when approved schedule and return-to-service criteria are met.</li>
+                  <li><span class="tsa-note-ref">§H —</span> Force-majeure and deemed available hours applied per documented evidence pack.</li>
+                  <li><span class="tsa-note-ref">§I —</span> Repeat trips (&gt;2 in FY) flagged for element-level incentive / penalty review.</li>
+                  <li><span class="tsa-note-ref">§Target —</span> Incentive band begins above 98.5% monthly TAFM for the monitored portfolio.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TSA — AC TRANSMISSION LINES -->
+        <section id="view-tsa-ac-lines" class="view view-stack">
+          <div class="grid-2 page-section">
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Element Availability</h3>
+                <div class="panel-header-actions">
+                  <select id="tsa-ac-voltage-filter" class="select-sm" aria-label="Filter by voltage">
+                    <option value="all">All</option>
+                  </select>
+                  <button type="button" id="tsa-ac-export-csv" class="btn btn-secondary btn-sm" title="Export CSV">
+                    <i data-lucide="download" class="h-4 w-4"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="panel-body chart-container-lg">
+                <canvas id="tsa-ac-avail-chart" aria-label="Element availability chart"></canvas>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Outage Hours by Element</h3>
+              </div>
+              <div class="panel-body chart-container-lg">
+                <canvas id="tsa-ac-outage-chart" aria-label="Outage hours by element chart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel page-section">
+            <div class="panel-body p-0 overflow-x-auto">
+              <table class="data-table data-table--compact tsa-ac-matrix" id="tsa-ac-lines-table">
+                <thead>
+                  <tr>
+                    <th>LINE</th>
+                    <th class="text-right">KV</th>
+                    <th class="text-right">SIL</th>
+                    <th class="text-right">CKT-KM</th>
+                    <th class="text-right">WI</th>
+                    <th class="text-right">TNAI</th>
+                    <th class="text-right">AVI</th>
+                  </tr>
+                </thead>
+                <tbody id="tsa-ac-lines-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- TSA — INTER-CONNECTING TRANSFORMERS -->
+        <section id="view-tsa-ict" class="view view-stack">
+          <div class="grid-2 page-section">
+            <div class="panel">
+              <div class="panel-header">
+                <div>
+                  <h3>Element Availability</h3>
+                  <p class="card__meta">Availability from the table (%)</p>
+                </div>
+              </div>
+              <div class="panel-body chart-container-lg">
+                <canvas id="tsa-ict-avail-chart" aria-label="ICT element availability chart"></canvas>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-header">
+                <div>
+                  <h3>Outage Hours by Element</h3>
+                  <p class="card__meta">T<sub>NA</sub> / effective hours from the table</p>
+                </div>
+              </div>
+              <div class="panel-body chart-container-lg">
+                <canvas id="tsa-ict-outage-chart" aria-label="ICT outage hours chart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel page-section">
+            <div class="panel-body p-0 overflow-x-auto">
+              <table class="data-table data-table--compact tsa-ict-matrix" id="tsa-ict-table">
+                <thead>
+                  <tr>
+                    <th>TRANSFORMER</th>
+                    <th>RATIO</th>
+                    <th class="text-right">MVA (W<sub>i</sub>)</th>
+                    <th>TYPE</th>
+                    <th class="text-right">T<sub>i</sub></th>
+                    <th class="text-right">T<sub>NA</sub><sub>i</sub></th>
+                    <th class="text-right">AVAILABILITY</th>
+                    <th>STATUS</th>
+                  </tr>
+                </thead>
+                <tbody id="tsa-ict-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- TSA — REACTIVE POWER ASSETS -->
+        <section id="view-tsa-reactive" class="view view-stack">
+          <div class="tsa-page-header page-section">
+            <div class="tsa-page-header-text">
+              <p class="tsa-page-eyebrow">Transmission System Availability</p>
+              <h3 class="tsa-page-title">Reactive Power Assets</h3>
+              <p class="tsa-page-desc">
+                Switched Bus Reactors and Static Var Compensators.
+                Weightage W<sub>i</sub> = inductive / capacitive rating in MVAR.
+              </p>
+            </div>
+            <div class="tsa-page-actions">
+              <button type="button" id="tsa-reactive-export-csv" class="btn btn-secondary btn-sm">
+                <i data-lucide="download" class="h-4 w-4"></i>
+                Export CSV
+              </button>
+            </div>
+          </div>
+
+          <div class="grid-2 page-section">
+            <div class="panel">
+              <div class="panel-header">
+                <div>
+                  <h3>Element Availability</h3>
+                  <p class="card__meta">Availability from the table (%)</p>
+                </div>
+              </div>
+              <div class="panel-body chart-container-lg">
+                <canvas id="tsa-reactive-avail-chart" aria-label="Reactive asset availability chart"></canvas>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-header">
+                <div>
+                  <h3>Outage Hours by Element</h3>
+                  <p class="card__meta">T<sub>NA</sub> / effective hours from the table</p>
+                </div>
+              </div>
+              <div class="panel-body chart-container-lg">
+                <canvas id="tsa-reactive-outage-chart" aria-label="Reactive asset outage hours chart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel page-section">
+            <div class="panel-header">
+              <h3>Shunt / Bus Reactors</h3>
+            </div>
+            <div class="panel-body p-0 overflow-x-auto">
+              <table class="data-table data-table--compact tsa-reactive-matrix">
+                <thead>
+                  <tr>
+                    <th>ASSET</th>
+                    <th class="text-right">KV</th>
+                    <th class="text-right">MVAR (W<sub>i</sub>)</th>
+                    <th class="text-right">T<sub>i</sub></th>
+                    <th class="text-right">T<sub>NA</sub><sub>i</sub></th>
+                    <th class="text-right">AVAILABILITY</th>
+                    <th>STATUS</th>
+                  </tr>
+                </thead>
+                <tbody id="tsa-reactive-reactors-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel page-section">
+            <div class="panel-header">
+              <h3>Static Var Compensators (SVC)</h3>
+            </div>
+            <div class="panel-body p-0 overflow-x-auto">
+              <table class="data-table data-table--compact tsa-reactive-matrix">
+                <thead>
+                  <tr>
+                    <th>ASSET</th>
+                    <th class="text-right">KV</th>
+                    <th class="text-right">MVAR (W<sub>i</sub>)</th>
+                    <th class="text-right">T<sub>i</sub></th>
+                    <th class="text-right">T<sub>NA</sub><sub>i</sub></th>
+                    <th class="text-right">AVAILABILITY</th>
+                    <th>STATUS</th>
+                  </tr>
+                </thead>
+                <tbody id="tsa-reactive-svc-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- TSA — OUTAGE ANALYTICS -->
+        <section id="view-tsa-outage-analytics" class="view view-stack">
+          <div class="grid-2 page-section">
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Shutdown / Breakdown / Tripping by Circle</h3>
+              </div>
+              <div class="panel-body chart-container-lg">
+                <canvas id="tsa-outage-circle-chart" aria-label="Outage by circle stacked chart"></canvas>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-header">
+                <h3>TAFM Comparison — FY Trend</h3>
+              </div>
+              <div class="panel-body chart-container-lg">
+                <canvas id="tsa-outage-tafm-chart" aria-label="TAFM FY trend chart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2 page-section">
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Top Contributing Reasons</h3>
+              </div>
+              <div class="panel-body chart-container-lg">
+                <canvas id="tsa-outage-reasons-chart" aria-label="Top contributing outage reasons"></canvas>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Element-wise Non-Availability (Pareto)</h3>
+              </div>
+              <div class="panel-body chart-container-lg">
+                <canvas id="tsa-outage-pareto-chart" aria-label="Element-wise non-availability pareto"></canvas>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TSA — DEEMED / EXEMPT REGISTER -->
+        <section id="view-tsa-deemed-exempt" class="view view-stack">
+          <div class="panel page-section">
+            <div class="panel-header">
+              <div>
+                <h3>Outage Hours by Category</h3>
+                <p class="card__meta">Countable and deemed-exempt hours from the filtered register</p>
+              </div>
+              <button type="button" id="tsa-deemed-export-csv" class="btn btn-secondary btn-sm">
+                <i data-lucide="download" class="h-4 w-4"></i>
+                Export CSV
+              </button>
+            </div>
+            <div class="panel-body chart-container-lg">
+              <canvas id="tsa-deemed-category-chart" aria-label="Outage hours by category stacked chart"></canvas>
+            </div>
+          </div>
+
+          <div class="panel page-section">
+            <div class="panel-header">
+              <div>
+                <h3>Deemed / Exempt Register</h3>
+                <p class="card__meta">Shutdown, breakdown and tripping entries with countable / exempt classification</p>
+              </div>
+            </div>
+            <div class="panel-body p-0 overflow-x-auto">
+              <table class="data-table data-table--compact tsa-deemed-matrix" id="tsa-deemed-table">
+                <thead>
+                  <tr>
+                    <th>DATE</th>
+                    <th>ELEMENT</th>
+                    <th>CATEGORY</th>
+                    <th>REASON</th>
+                    <th class="text-right">HOURS</th>
+                    <th>SHUTDOWN BY</th>
+                    <th>WTD</th>
+                    <th>COUNTABLE</th>
+                    <th>REMARKS / ATTACH</th>
+                  </tr>
+                </thead>
+                <tbody id="tsa-deemed-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- TSA — TRIPPING REGISTER -->
+        <section id="view-tsa-tripping-register" class="view view-stack">
+          <div class="tsa-page-header page-section">
+            <div class="tsa-page-header-text">
+              <p class="tsa-page-eyebrow">Transmission System Availability</p>
+              <h3 class="tsa-page-title">Tripping Register</h3>
+              <p class="tsa-page-desc">
+                Per-element trip count and application of the doc §H penalty.
+                X = trips greater than 10&nbsp;min, Y = trips less than or equal to 10&nbsp;min.
+                When X+Y &gt; 2, additional trips attract a 12-hour multiplier.
+              </p>
+            </div>
+            <div class="tsa-page-actions">
+              <button type="button" id="tsa-tripping-export-csv" class="btn btn-secondary btn-sm">
+                <i data-lucide="download" class="h-4 w-4"></i>
+                Export CSV
+              </button>
+            </div>
+          </div>
+
+          <div class="panel page-section">
+            <div class="panel-body p-0 overflow-x-auto">
+              <table class="data-table data-table--compact tsa-tripping-matrix" id="tsa-tripping-table">
+                <thead>
+                  <tr>
+                    <th>ELEMENT</th>
+                    <th class="text-right">X &gt; 10 MIN</th>
+                    <th class="text-right">Y ≤ 10 MIN</th>
+                    <th class="text-right">Z = X + Y</th>
+                    <th>RULE APPLIED</th>
+                    <th class="text-right">ACTUAL OUTAGE</th>
+                    <th class="text-right">PENALTY (HRS)</th>
+                    <th class="text-right">EFFECTIVE OUTAGE</th>
+                    <th class="text-right">AVAILABILITY</th>
+                    <th>STATUS</th>
+                  </tr>
+                </thead>
+                <tbody id="tsa-tripping-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- SETTINGS & ACCESS CONTROL -->
+        <section id="view-settings" class="view view-stack">
+
+          <div class="kpi-grid-compact">
+            <div class="kpi-card kpi-compact kpi-accent-blue">
+              <div class="kpi-compact-row">
+                <div class="kpi-icon-wrap"><i data-lucide="users" class="h-5 w-5"></i></div>
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Total Users</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="set-users-count">0</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-green">
+              <div class="kpi-compact-row">
+                <div class="kpi-icon-wrap"><i data-lucide="shield" class="h-5 w-5"></i></div>
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Active Roles</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="set-roles-count">0</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-orange">
+              <div class="kpi-compact-row">
+                <div class="kpi-icon-wrap"><i data-lucide="lock-keyhole" class="h-5 w-5"></i></div>
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">RLS Policies</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="set-rls-count">0</p></div>
+                </div>
+              </div>
+            </div>
+            <div class="kpi-card kpi-compact kpi-accent-red">
+              <div class="kpi-compact-row">
+                <div class="kpi-icon-wrap"><i data-lucide="monitor-smartphone" class="h-5 w-5"></i></div>
+                <div class="kpi-compact-body">
+                  <p class="kpi-label">Active Sessions</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="set-sessions-count">0</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="layout-grid-2">
+            <div class="panel">
+              <div class="panel-header">
+                <h3>User Access &amp; Roles</h3>
+                <button type="button" class="btn btn-primary btn-sm" id="set-add-user-btn">Add User</button>
+              </div>
+              <div class="panel-body p-0 overflow-x-auto">
+                <table class="data-table data-table--compact">
+                  <thead>
+                    <tr>
+                      <th>User</th>
+                      <th>Role</th>
+                      <th>Data Scope</th>
+                      <th>Status</th>
+                      <th>Last Login</th>
+                    </tr>
+                  </thead>
+                  <tbody id="set-users-body"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Row-Level Security (RLS)</h3>
+                <span class="badge badge-success" id="set-rls-status">Enforced</span>
+              </div>
+              <div class="panel-body p-0 overflow-x-auto">
+                <table class="data-table data-table--compact">
+                  <thead>
+                    <tr>
+                      <th>Policy</th>
+                      <th>Resource</th>
+                      <th>Scope Rule</th>
+                      <th>Roles</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="set-rls-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="layout-grid-2">
+            <div class="panel">
+              <div class="panel-header"><h3>Zone &amp; Division Data Scope</h3></div>
+              <div class="panel-body" id="set-scope-grid"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header"><h3>Session &amp; Security</h3></div>
+              <div class="panel-body settings-form-stack">
+                <div class="settings-row">
+                  <div>
+                    <p class="settings-row-label">Enforce MFA</p>
+                    <p class="settings-row-hint">Require multi-factor for all operator logins</p>
+                  </div>
+                  <label class="settings-toggle">
+                    <input type="checkbox" id="set-mfa-toggle" checked>
+                    <span class="settings-toggle-track"></span>
+                  </label>
+                </div>
+                <div class="settings-row">
+                  <div>
+                    <p class="settings-row-label">Session Timeout</p>
+                    <p class="settings-row-hint">Auto logout after inactivity</p>
+                  </div>
+                  <select id="set-session-timeout" class="filter-select settings-select">
+                    <option value="15">15 minutes</option>
+                    <option value="30" selected>30 minutes</option>
+                    <option value="60">1 hour</option>
+                    <option value="120">2 hours</option>
+                  </select>
+                </div>
+                <div class="settings-row">
+                  <div>
+                    <p class="settings-row-label">Audit Logging</p>
+                    <p class="settings-row-hint">Record access to substation and alarm data</p>
+                  </div>
+                  <label class="settings-toggle">
+                    <input type="checkbox" id="set-audit-toggle" checked>
+                    <span class="settings-toggle-track"></span>
+                  </label>
+                </div>
+                <div class="settings-row">
+                  <div>
+                    <p class="settings-row-label">IP Allowlist</p>
+                    <p class="settings-row-hint">Restrict dashboard access to approved networks</p>
+                  </div>
+                  <label class="settings-toggle">
+                    <input type="checkbox" id="set-ip-toggle">
+                    <span class="settings-toggle-track"></span>
+                  </label>
+                </div>
+                <div class="settings-actions">
+                  <button type="button" class="btn btn-primary btn-sm" id="set-save-security">Save Security Settings</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Recent Access Audit Log</h3>
+              <button type="button" class="btn btn-secondary btn-sm" id="set-export-audit">
+                <i data-lucide="download" class="h-4 w-4"></i>
+                Export
+              </button>
+            </div>
+            <div class="panel-body p-0 overflow-x-auto">
+              <table class="data-table data-table--compact">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Resource</th>
+                    <th>Scope Applied</th>
+                    <th>Result</th>
+                  </tr>
+                </thead>
+                <tbody id="set-audit-body"></tbody>
               </table>
             </div>
           </div>

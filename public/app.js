@@ -91,6 +91,14 @@
     'grid-intelligence': 'Grid Intelligence Analytics',
     uptime: 'Uptime Monitoring',
     'live-alarms': 'Alarms',
+    settings: 'Settings & Access Control',
+    'tsa-executive-summary': 'TSA — Executive Summary',
+    'tsa-ac-lines': 'AC Transmission Lines',
+    'tsa-ict': 'Inter-Connecting Transformers',
+    'tsa-reactive': 'Reactive Power Assets',
+    'tsa-outage-analytics': 'Outage Analytics',
+    'tsa-deemed-exempt': 'Deemed/Exempt Register',
+    'tsa-tripping-register': 'Tripping Register',
   };
 
   // ─── Utilities ───────────────────────────────────────────────────────
@@ -478,6 +486,74 @@
     };
   }
 
+  const UPTIME_CAUSE_COLORS = ['#ff3b7e', '#5d68f1', '#ffca3a', '#34d399'];
+  const OV_HEALTH_LABELS = ['Healthy (>75)', 'Degraded (50-75)', 'Critical (<50)'];
+  const OV_HEALTH_LEGEND_LABELS = ['Healthy', 'Degraded', 'Critical'];
+
+  function getCardBgColor() {
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--bg-card').trim();
+    return v || (isDark() ? '#1F2937' : '#FFFFFF');
+  }
+
+  function getOvHealthCounts() {
+    const assets = state.data?.assets || [];
+    return [
+      assets.filter((a) => a.score > 75).length,
+      assets.filter((a) => a.score >= 50 && a.score <= 75).length,
+      assets.filter((a) => a.score < 50).length,
+    ];
+  }
+
+  function getOvHealthColors() {
+    return [CHART_SUCCESS, CHART_WARNING, CHART_DANGER];
+  }
+
+  function renderDonutSplitLegend(legendId, labels, values, colors) {
+    const legend = document.getElementById(legendId);
+    if (!legend) return;
+    const total = values.reduce((s, v) => s + v, 0) || 1;
+    legend.innerHTML = labels.map((label, i) => {
+      const pct = Math.round((values[i] / total) * 100);
+      const color = colors[i % colors.length];
+      return `
+        <li class="donut-split-legend-item">
+          <span class="donut-split-legend-bar" style="background:${color}" aria-hidden="true"></span>
+          <div class="donut-split-legend-text">
+            <span class="donut-split-legend-label">${label}</span>
+            <span class="donut-split-legend-value">${pct}%</span>
+          </div>
+        </li>`;
+    }).join('');
+  }
+
+  function syncUptimeCauseChart() {
+    const causes = state.data?.uptime?.causes;
+    if (!causes) return;
+    const labels = Object.keys(causes);
+    const values = Object.values(causes);
+    renderDonutSplitLegend('uptime-cause-legend', labels, values, UPTIME_CAUSE_COLORS);
+    if (!state.charts.uptimeCause) return;
+    const cardBg = getCardBgColor();
+    state.charts.uptimeCause.data.labels = labels;
+    state.charts.uptimeCause.data.datasets[0].data = values;
+    state.charts.uptimeCause.data.datasets[0].backgroundColor = UPTIME_CAUSE_COLORS.slice(0, labels.length);
+    state.charts.uptimeCause.data.datasets[0].borderColor = cardBg;
+    state.charts.uptimeCause.update('none');
+  }
+
+  function syncOvHealthChart() {
+    const values = getOvHealthCounts();
+    const colors = getOvHealthColors();
+    renderDonutSplitLegend('ov-health-legend', OV_HEALTH_LEGEND_LABELS, values, colors);
+    if (!state.charts.ovHealth) return;
+    const cardBg = getCardBgColor();
+    state.charts.ovHealth.data.labels = OV_HEALTH_LABELS;
+    state.charts.ovHealth.data.datasets[0].data = values;
+    state.charts.ovHealth.data.datasets[0].backgroundColor = colors;
+    state.charts.ovHealth.data.datasets[0].borderColor = cardBg;
+    state.charts.ovHealth.update('none');
+  }
+
   function applyTheme(theme) {
     state.theme = theme;
     localStorage.setItem('substation-theme', theme);
@@ -531,6 +607,8 @@
 
   function updateAllChartThemes() {
     Object.values(state.charts).forEach(updateChartTheme);
+    syncUptimeCauseChart();
+    syncOvHealthChart();
   }
 
   // ─── Mock Data Engine ──────────────────────────────────────────────────
@@ -714,6 +792,418 @@
           { ts: '03 Jul 2026 14:02', service: 'Dashboard Web', region: 'India-South', status: 'Recovered', duration: '5 min' },
         ],
       },
+      tsa: {
+        target: 98.5,
+        periodLabel: 'AUG 2023',
+        monthlyTafm: 99.64,
+        countableOutageHr: 85.2,
+        repeatTripElements: 3,
+        elements: { lines: 10, icts: 6, reactive: 3 },
+        trend: {
+          labels: ['Apr', 'May', 'Jun', 'Jul', 'Aug'],
+          tafm: [99.52, 99.71, 99.38, 99.44, 99.64],
+        },
+        category: {
+          labels: ['AC Lines', 'ICTs', 'Reactors + SVC'],
+          values: [52, 28, 20],
+        },
+        notes: [
+          { ref: '§4.A —', text: 'TAFM computed as availability of transmission elements over the month, net of allowable deductions.' },
+          { ref: '§G —', text: 'Planned outages deducted only when approved schedule and return-to-service criteria are met.' },
+          { ref: '§H —', text: 'Force-majeure and deemed available hours applied per documented evidence pack.' },
+          { ref: '§I —', text: 'Repeat trips (>2 in FY) flagged for element-level incentive / penalty review.' },
+          { ref: '§Target —', text: 'Incentive band begins above 98.5% monthly TAFM for the monitored portfolio.' },
+        ],
+        acLines: {
+          availTarget: 98.5,
+          voltageFilter: 'all',
+          notes: [
+            { ref: 'Wᵢ —', text: 'Weightage Factor = SIL (MW) × Circuit Kilometers (Ckt-Km).' },
+            { ref: 'AVᵢ —', text: 'Availability = Net Available Hours / Total Hours (Tᵢ) for the month.' },
+            { ref: 'Tₙₐᵢ —', text: 'Forced / countable outage hours after deemed / exempt hours are applied.' },
+            { ref: '§Target —', text: 'Line elements below 98.5% AVᵢ are flagged for review (same incentive band as TAFM).' },
+          ],
+          lines: [
+            {
+              name: '220kV D/C Mohindergarh - Rewari',
+              voltage: 220,
+              conductor: 'Twin Zebra',
+              silMw: 175,
+              cktKm: 54.1,
+              totalHours: 744,
+              forcedOutageHr: 12.3,
+              exemptHr: 5.0,
+            },
+            {
+              name: '220kV S/C Ambala - Shahabad',
+              voltage: 220,
+              conductor: 'Single Zebra',
+              silMw: 132,
+              cktKm: 32.4,
+              totalHours: 744,
+              forcedOutageHr: 8.4,
+              exemptHr: 1.5,
+            },
+            {
+              name: '132kV D/C Gurugram Sec-56 - Sector-45',
+              voltage: 132,
+              conductor: 'Panther',
+              silMw: 50,
+              cktKm: 12.8,
+              totalHours: 744,
+              forcedOutageHr: 6.0,
+              exemptHr: 3.5,
+            },
+            {
+              name: '400kV D/C Kaithal - Patiala (HVPN Line)',
+              voltage: 400,
+              conductor: 'Quad Moose',
+              silMw: 515,
+              cktKm: 42.6,
+              totalHours: 744,
+              forcedOutageHr: 4.5,
+              exemptHr: 2.0,
+            },
+            {
+              name: '66kV S/C Yamunanagar - Jagadhri',
+              voltage: 66,
+              conductor: 'Dog',
+              silMw: 18,
+              cktKm: 11.2,
+              totalHours: 744,
+              forcedOutageHr: 0.0,
+              exemptHr: 0.0,
+            },
+            {
+              name: '220kV D/C Hisar - Fatehabad',
+              voltage: 220,
+              conductor: 'Twin Zebra',
+              silMw: 175,
+              cktKm: 48.6,
+              totalHours: 744,
+              forcedOutageHr: 3.2,
+              exemptHr: 1.0,
+            },
+            {
+              name: '400kV D/C Bhiwani - Jind',
+              voltage: 400,
+              conductor: 'Quad Moose',
+              silMw: 515,
+              cktKm: 61.0,
+              totalHours: 744,
+              forcedOutageHr: 2.1,
+              exemptHr: 0.5,
+            },
+            {
+              name: '132kV S/C Panipat - Samalkha',
+              voltage: 132,
+              conductor: 'Panther',
+              silMw: 50,
+              cktKm: 18.4,
+              totalHours: 744,
+              forcedOutageHr: 9.8,
+              exemptHr: 2.0,
+            },
+          ],
+        },
+        ict: {
+          availTarget: 98.5,
+          units: [
+            {
+              name: '400kV ICT-1 [Deepalpur]',
+              circle: 'North Circle',
+              ratio: '400/220',
+              mva: 500,
+              type: 'General',
+              totalHours: 744,
+              forcedOutageHr: 0.0,
+            },
+            {
+              name: '400kV ICT-2 [Deepalpur]',
+              circle: 'North Circle',
+              ratio: '400/220',
+              mva: 500,
+              type: 'General',
+              totalHours: 744,
+              forcedOutageHr: 8.2,
+            },
+            {
+              name: '220kV ICT-1 [Nahar]',
+              circle: 'South Circle',
+              ratio: '220/132',
+              mva: 160,
+              type: 'General',
+              totalHours: 744,
+              forcedOutageHr: 0.0,
+            },
+            {
+              name: '220kV ICT-2 [Nahar]',
+              circle: 'South Circle',
+              ratio: '220/132',
+              mva: 160,
+              type: 'General',
+              totalHours: 744,
+              forcedOutageHr: 3.5,
+            },
+            {
+              name: '220kV ICT-1 [Pinjore]',
+              circle: 'North Circle',
+              ratio: '220/66',
+              mva: 100,
+              type: 'General',
+              totalHours: 744,
+              forcedOutageHr: 0.0,
+            },
+            {
+              name: '220kV ICT-Hot-1 [Rohtak]',
+              circle: 'Central Circle',
+              ratio: '220/132',
+              mva: 160,
+              type: 'Hot',
+              totalHours: 744,
+              forcedOutageHr: 2.0,
+            },
+          ],
+        },
+        reactive: {
+          availTarget: 98.5,
+          reactors: [
+            {
+              name: '400kV Shunt Reactor-1 [Kaithal]',
+              circle: 'North Circle',
+              kv: 400,
+              mvar: 125,
+              totalHours: 744,
+              forcedOutageHr: 0.0,
+            },
+            {
+              name: '400kV Shunt Reactor-2 [Hisar]',
+              circle: 'West Circle',
+              kv: 400,
+              mvar: 80,
+              totalHours: 744,
+              forcedOutageHr: 0.0,
+            },
+          ],
+          svc: [
+            {
+              name: '400kV Dynamic SVC [Panipat]',
+              circle: 'East Circle',
+              kv: 400,
+              mvar: 200,
+              totalHours: 744,
+              forcedOutageHr: 0.0,
+            },
+          ],
+        },
+        outageAnalytics: {
+          target: 98.5,
+          byCircle: {
+            labels: ['North', 'South', 'Central', 'West'],
+            shutdown: [4.2, 2.1, 1.0, 0.8],
+            breakdown: [7.5, 3.4, 1.2, 1.5],
+            tripping: [11.8, 10.6, 2.0, 1.8],
+          },
+          tafmTrend: {
+            labels: ['Apr', 'May', 'Jun', 'Jul', 'Aug'],
+            values: [99.32, 99.48, 99.21, 99.41, 99.62],
+          },
+          reasons: [
+            { label: 'Damage/failure of jumper', hours: 12.2 },
+            { label: 'Act of God', hours: 8.5 },
+            { label: 'For arresting oil leakage', hours: 8.2 },
+            { label: 'Preventive Maintenance', hours: 4.4 },
+            { label: 'For testing by staff/M&P', hours: 3.5 },
+            { label: 'Damage/failure of CT', hours: 3.0 },
+            { label: 'Damage/failure of LA', hours: 2.1 },
+            { label: 'No fault found', hours: 1.3 },
+          ],
+          pareto: [
+            { label: '220kV Mohindergarh-Rewari', hours: 12.2 },
+            { label: '220kV Ambala-Shahabad', hours: 8.3 },
+            { label: '400kV ICT-2 Deepalpur', hours: 8.1 },
+            { label: '400kV Kaithal-Patiala', hours: 4.6 },
+            { label: '220kV ICT-2 Nahar', hours: 3.5 },
+            { label: '220kV Rohtak-Jind', hours: 2.8 },
+            { label: '66kV Panchkula-Pinjore', hours: 2.1 },
+            { label: '132kV Hisar-Hansi', hours: 1.6 },
+          ],
+        },
+        deemedExempt: {
+          rows: [
+            {
+              date: '2025-08-04',
+              element: '400kV Kaithal-Patiala',
+              category: 'Shutdown',
+              reason: 'Preventive Maintenance',
+              hours: 4.5,
+              shutdownBy: 'HVPNL',
+              wtd: true,
+              countable: 'Counted',
+              remarks: 'Bay isolator overhaul',
+              attach: 'attach.pdf',
+            },
+            {
+              date: '2025-08-06',
+              element: '220kV Mohindergarh-Rewari',
+              category: 'Tripping',
+              reason: 'Damage/failure of jumper',
+              hours: 12.3,
+              shutdownBy: 'HVPNL',
+              wtd: false,
+              countable: 'Counted',
+              remarks: 'Jumper snapped near tower 42',
+              attach: 'attach.pdf',
+            },
+            {
+              date: '2025-08-08',
+              element: '220kV Ambala-Shahabad',
+              category: 'Breakdown',
+              reason: 'Act of God',
+              hours: 6.0,
+              shutdownBy: 'HVPNL',
+              wtd: true,
+              countable: 'Counted',
+              remarks: 'Storm damage — conductor',
+              attach: null,
+            },
+            {
+              date: '2025-08-09',
+              element: '400kV ICT-2 Deepalpur',
+              category: 'Shutdown',
+              reason: 'For arresting oil leakage',
+              hours: 5.2,
+              shutdownBy: 'HVPNL',
+              wtd: true,
+              countable: 'Deemed exempt',
+              remarks: 'Conservator gasket replacement',
+              attach: 'attach.pdf',
+            },
+            {
+              date: '2025-08-11',
+              element: '220kV Rohtak-Jind',
+              category: 'Tripping',
+              reason: 'No fault found',
+              hours: 5.8,
+              shutdownBy: 'HVPNL',
+              wtd: false,
+              countable: 'Counted',
+              remarks: 'Auto-reclose successful',
+              attach: null,
+            },
+            {
+              date: '2025-08-12',
+              element: '132kV Hisar-Hansi',
+              category: 'Breakdown',
+              reason: 'Damage/failure of CT',
+              hours: 5.1,
+              shutdownBy: 'HVPNL',
+              wtd: false,
+              countable: 'Counted',
+              remarks: 'CT bushing failure',
+              attach: 'attach.pdf',
+            },
+            {
+              date: '2025-08-14',
+              element: '66kV Panchkula-Pinjore',
+              category: 'Shutdown',
+              reason: 'To carry out construction work',
+              hours: 3.8,
+              shutdownBy: 'NHAI',
+              wtd: true,
+              countable: 'Deemed exempt',
+              remarks: 'Road widening clearance',
+              attach: 'attach.pdf',
+            },
+            {
+              date: '2025-08-15',
+              element: '400kV Kaithal-Patiala',
+              category: 'Tripping',
+              reason: 'Damage/failure of LA',
+              hours: 5.9,
+              shutdownBy: 'HVPNL',
+              wtd: false,
+              countable: 'Counted',
+              remarks: 'LA flashover Phase-B',
+              attach: null,
+            },
+            {
+              date: '2025-08-18',
+              element: '220kV ICT-2 Nahar',
+              category: 'Shutdown',
+              reason: 'For testing by staff/M&P',
+              hours: 2.4,
+              shutdownBy: 'HVPNL',
+              wtd: true,
+              countable: 'Counted',
+              remarks: 'Differential relay testing',
+              attach: null,
+            },
+          ],
+        },
+        trippingRegister: {
+          totalHours: 744,
+          availTarget: 98.5,
+          rows: [
+            {
+              name: '400kV D/C Kaithal - Patiala (HVPN Line)',
+              circle: 'North Circle',
+              tripsOver10: 1,
+              tripsUnder10: 0,
+              actualOutageHr: 4.5,
+            },
+            {
+              name: '220kV S/C Ambala - Shahabad',
+              circle: 'North Circle',
+              tripsOver10: 1,
+              tripsUnder10: 1,
+              actualOutageHr: 8.4,
+            },
+            {
+              name: '220kV D/C Mohindergarh - Rewari',
+              circle: 'South Circle',
+              tripsOver10: 2,
+              tripsUnder10: 1,
+              actualOutageHr: 12.3,
+            },
+            {
+              name: '220kV D/C Hisar - Fatehabad',
+              circle: 'West Circle',
+              tripsOver10: 0,
+              tripsUnder10: 1,
+              actualOutageHr: 3.2,
+            },
+            {
+              name: '400kV D/C Bhiwani - Jind',
+              circle: 'Central Circle',
+              tripsOver10: 0,
+              tripsUnder10: 2,
+              actualOutageHr: 2.1,
+            },
+            {
+              name: '66kV S/C Yamunanagar - Jagadhri',
+              circle: 'North Circle',
+              tripsOver10: 0,
+              tripsUnder10: 0,
+              actualOutageHr: 0.0,
+            },
+            {
+              name: '132kV S/C Panipat - Samalkha',
+              circle: 'Central Circle',
+              tripsOver10: 4,
+              tripsUnder10: 0,
+              actualOutageHr: 9.8,
+            },
+            {
+              name: '132kV D/C Gurugram Sec-56 - Sector-45',
+              circle: 'South Circle',
+              tripsOver10: 3,
+              tripsUnder10: 2,
+              actualOutageHr: 6.0,
+            },
+          ],
+        },
+      },
     };
 
     // If processed Unispur sample data is available, hydrate key metrics/series.
@@ -766,6 +1256,46 @@
       { id: `AL-${now - 640000}`, severity: 'p4', source: 'Diesel Generator 1', message: 'DG auto-start test completed', time: now - 640000, acked: true, shelved: false },
       { id: `AL-${now - 720000}`, severity: 'p3', source: '33kV Busbar A', message: 'Power factor below threshold (0.85)', time: now - 720000, acked: false, shelved: true },
     ];
+
+    state.settingsAccess = {
+      users: [
+        { name: 'Admin User', email: 'admin@hvpn.gov.in', role: 'Super Admin', scope: 'All Circles', status: 'active', lastLogin: now - 120000 },
+        { name: 'Rajesh Kumar', email: 'rajesh.k@hvpn.gov.in', role: 'Circle Manager', scope: 'North Circle', status: 'active', lastLogin: now - 900000 },
+        { name: 'Priya Sharma', email: 'priya.s@hvpn.gov.in', role: 'O&M Engineer', scope: 'North Div I · Alpha-1, Beta-2', status: 'active', lastLogin: now - 1800000 },
+        { name: 'Vikram Singh', email: 'vikram.s@hvpn.gov.in', role: 'O&M Engineer', scope: 'South Circle', status: 'active', lastLogin: now - 3600000 },
+        { name: 'Anita Desai', email: 'anita.d@hvpn.gov.in', role: 'Analyst', scope: 'East Circle (read-only)', status: 'active', lastLogin: now - 7200000 },
+        { name: 'Guest Auditor', email: 'audit@external.in', role: 'Auditor', scope: 'Reports only', status: 'inactive', lastLogin: now - 86400000 * 3 },
+      ],
+      rlsPolicies: [
+        { name: 'Zone-Scoped Substation Data', resource: 'substations', rule: 'user.zone = row.zone_id', roles: 'O&M Engineer, Circle Manager', status: 'enabled' },
+        { name: 'Division Feeder Access', resource: 'feeders', rule: 'user.division IN row.division_ids', roles: 'O&M Engineer', status: 'enabled' },
+        { name: 'Alarm Ack Permission', resource: 'alarms', rule: 'role IN (Super Admin, O&M Engineer)', roles: 'Super Admin, O&M Engineer', status: 'enabled' },
+        { name: 'Compliance Read-Only', resource: 'compliance', rule: 'role != Guest', roles: 'Analyst, Auditor', status: 'enabled' },
+        { name: 'Settings Admin Only', resource: 'settings', rule: 'role = Super Admin', roles: 'Super Admin', status: 'enabled' },
+      ],
+      scopeMatrix: [
+        { role: 'Super Admin', zones: 'All Circles', divisions: 'All Divisions', substations: 'All Substations', alarms: 'Full', reports: 'Full' },
+        { role: 'Circle Manager', zones: 'Assigned Circle', divisions: 'All in Circle', substations: 'All in Circle', alarms: 'View + Ack', reports: 'Circle scope' },
+        { role: 'O&M Engineer', zones: 'Assigned Circle', divisions: 'Assigned Division', substations: 'Assigned only', alarms: 'View + Ack', reports: 'Division scope' },
+        { role: 'Analyst', zones: 'Assigned Circle', divisions: 'Read-only', substations: 'Read-only', alarms: 'View only', reports: 'Export allowed' },
+        { role: 'Auditor', zones: 'None (reports)', divisions: '—', substations: '—', alarms: '—', reports: 'Read-only export' },
+      ],
+      auditLog: [
+        { time: now - 60000, user: 'admin@hvpn.gov.in', action: 'LOGIN', resource: 'Dashboard', scope: 'All Circles', result: 'success' },
+        { time: now - 240000, user: 'priya.s@hvpn.gov.in', action: 'VIEW', resource: 'Substation Alpha-1', scope: 'North Div I', result: 'success' },
+        { time: now - 420000, user: 'rajesh.k@hvpn.gov.in', action: 'ACK_ALARM', resource: 'AL-20260709-442', scope: 'North Circle', result: 'success' },
+        { time: now - 780000, user: 'vikram.s@hvpn.gov.in', action: 'EXPORT', resource: 'Load Profile Report', scope: 'South Circle', result: 'success' },
+        { time: now - 1200000, user: 'guest@external.in', action: 'LOGIN', resource: 'Settings', scope: '—', result: 'denied' },
+        { time: now - 2100000, user: 'anita.d@hvpn.gov.in', action: 'VIEW', resource: 'Grid Reliability', scope: 'East Circle', result: 'success' },
+      ],
+      security: {
+        mfa: true,
+        sessionTimeout: '30',
+        auditLogging: true,
+        ipAllowlist: false,
+      },
+      activeSessions: 12,
+    };
   }
 
   function tickMockData() {
@@ -941,7 +1471,6 @@
 
   function initCharts() {
     const d = chartDefaults();
-
     // Overview load
     state.charts.ovLoad = new Chart(document.getElementById('ov-load-chart'), {
       type: 'line',
@@ -980,22 +1509,26 @@
     state.charts.ovHealth = new Chart(document.getElementById('ov-health-chart'), {
       type: 'doughnut',
       data: {
-        labels: ['Healthy (>75)', 'Degraded (50-75)', 'Critical (<50)'],
+        labels: OV_HEALTH_LABELS,
         datasets: [{
-          data: [0, 0, 0],
-          backgroundColor: [CHART_SUCCESS, CHART_WARNING, CHART_DANGER],
-          borderWidth: 0,
+          data: getOvHealthCounts(),
+          backgroundColor: getOvHealthColors(),
+          borderColor: getCardBgColor(),
+          borderWidth: 3,
+          hoverOffset: 2,
         }],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        cutout: '78%',
         plugins: {
-          legend: { position: 'bottom', labels: { color: d.color, font: { size: 10 }, padding: 12 } },
+          legend: { display: false },
           tooltip: d.tooltip,
         },
       },
     });
+    syncOvHealthChart();
 
     // Availability outage trend (24h)
     const availCount = 24;
@@ -1656,16 +2189,604 @@
         labels: Object.keys(state.data.uptime.causes),
         datasets: [{
           data: Object.values(state.data.uptime.causes),
-          backgroundColor: ['#0EA5E9', '#6366F1', '#F59E0B', '#00A870'],
+          backgroundColor: UPTIME_CAUSE_COLORS.slice(0, Object.keys(state.data.uptime.causes).length),
+          borderColor: getCardBgColor(),
+          borderWidth: 3,
+          hoverOffset: 2,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '78%',
+        plugins: {
+          legend: { display: false },
+          tooltip: d.tooltip,
+        },
+      },
+    });
+    syncUptimeCauseChart();
+
+    // TSA — Executive Summary (driven by state.data.tsa mock)
+    const tsa = state.data.tsa;
+    state.charts.tsaTafmTrend = new Chart(document.getElementById('tsa-tafm-trend-chart'), {
+      type: 'line',
+      data: {
+        labels: tsa.trend.labels,
+        datasets: [
+          {
+            label: 'Compiled TAFM',
+            data: tsa.trend.tafm.slice(),
+            borderColor: CHART_SUCCESS,
+            backgroundColor: 'rgba(0, 168, 112, 0.12)',
+            fill: false,
+            tension: 0.25,
+            pointRadius: 4,
+            pointBackgroundColor: CHART_SUCCESS,
+            borderWidth: 2,
+          },
+          {
+            label: `Target ${tsa.target}%`,
+            data: tsa.trend.labels.map(() => tsa.target),
+            borderColor: CHART_WARNING,
+            backgroundColor: 'transparent',
+            borderDash: [6, 4],
+            pointRadius: 0,
+            borderWidth: 2,
+            fill: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            ...d.tooltip,
+            callbacks: {
+              label(ctx) {
+                if (String(ctx.dataset.label).startsWith('Target')) {
+                  return `Target: ${ctx.parsed.y.toFixed(1)}%`;
+                }
+                return `${ctx.label} tsa : ${ctx.parsed.y.toFixed(2)}`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: { ticks: d.ticks, grid: { display: false }, border: { display: false } },
+          y: {
+            min: 97,
+            max: 100,
+            ticks: {
+              ...d.ticks,
+              callback(v) { return `${v}%`; },
+            },
+            grid: d.grid,
+            border: { display: false },
+          },
+        },
+      },
+    });
+
+    const tsaGaugeEl = document.getElementById('tsa-tafm-gauge-chart');
+    if (tsaGaugeEl) {
+      const gaugeFloor = 97;
+      const gaugeSpan = 100 - gaugeFloor;
+      const gaugeValue = tsa.monthlyTafm;
+      state.charts.tsaTafmGauge = new Chart(tsaGaugeEl, {
+        type: 'doughnut',
+        data: {
+          datasets: [{
+            data: [gaugeValue - gaugeFloor, gaugeSpan - (gaugeValue - gaugeFloor)],
+            backgroundColor: [CHART_WARNING, getChartColors().track],
+            borderWidth: 0,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          rotation: -90,
+          circumference: 180,
+          cutout: '72%',
+          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        },
+      });
+    }
+
+    state.charts.tsaAvailCategory = new Chart(document.getElementById('tsa-avail-category-chart'), {
+      type: 'doughnut',
+      data: {
+        labels: tsa.category.labels,
+        datasets: [{
+          data: tsa.category.values.slice(),
+          backgroundColor: [CHART_SUCCESS, CHART_WARNING, CHART_TEAL],
           borderWidth: 0,
         }],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { color: d.color } }, tooltip: d.tooltip },
+        cutout: '62%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: d.color, font: { size: 11 }, padding: 12, usePointStyle: true },
+          },
+          tooltip: d.tooltip,
+        },
       },
     });
+
+    // TSA — AC Transmission Lines charts
+    state.charts.tsaAcAvail = new Chart(document.getElementById('tsa-ac-avail-chart'), {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Availability %',
+            data: [],
+            backgroundColor: [],
+            borderRadius: 4,
+            maxBarThickness: 36,
+          },
+          {
+            label: 'Target',
+            data: [],
+            type: 'line',
+            borderColor: CHART_WARNING,
+            borderDash: [6, 4],
+            pointRadius: 0,
+            borderWidth: 2,
+            fill: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: d.tooltip,
+        },
+        scales: {
+          x: {
+            ticks: { ...d.ticks, maxRotation: 60, minRotation: 40, autoSkip: false, font: { size: 9 } },
+            grid: { display: false },
+            border: { display: false },
+            title: { display: true, text: 'Element', color: d.color, font: { size: 11 } },
+          },
+          y: {
+            min: 95,
+            max: 100,
+            ticks: {
+              ...d.ticks,
+              callback(v) { return `${v}%`; },
+            },
+            grid: d.grid,
+            border: { display: false },
+            title: { display: true, text: 'Availability (%)', color: d.color, font: { size: 11 } },
+          },
+        },
+      },
+    });
+
+    state.charts.tsaAcOutage = new Chart(document.getElementById('tsa-ac-outage-chart'), {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Outage hours',
+          data: [],
+          backgroundColor: CHART_WARNING,
+          borderRadius: 4,
+          maxBarThickness: 18,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: d.tooltip,
+        },
+        scales: {
+          x: {
+            min: 0,
+            ticks: {
+              ...d.ticks,
+              callback(v) { return `${v}h`; },
+            },
+            grid: d.grid,
+            border: { display: false },
+          },
+          y: {
+            ticks: { ...d.ticks, font: { size: 9 } },
+            grid: { display: false },
+            border: { display: false },
+          },
+        },
+      },
+    });
+
+    state.charts.tsaIctAvail = new Chart(document.getElementById('tsa-ict-avail-chart'), {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Availability %',
+            data: [],
+            backgroundColor: CHART_SUCCESS,
+            borderRadius: 4,
+            maxBarThickness: 36,
+          },
+          {
+            label: 'Target',
+            data: [],
+            type: 'line',
+            borderColor: CHART_WARNING,
+            borderDash: [6, 4],
+            pointRadius: 0,
+            borderWidth: 2,
+            fill: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: d.tooltip },
+        scales: {
+          x: {
+            ticks: { ...d.ticks, maxRotation: 45, minRotation: 30, autoSkip: false, font: { size: 9 } },
+            grid: { display: false },
+            border: { display: false },
+            title: { display: true, text: 'Element', color: d.color, font: { size: 11 } },
+          },
+          y: {
+            min: 95,
+            max: 100,
+            ticks: { ...d.ticks, callback(v) { return `${v}%`; } },
+            grid: d.grid,
+            border: { display: false },
+            title: { display: true, text: 'Availability (%)', color: d.color, font: { size: 11 } },
+          },
+        },
+      },
+    });
+
+    state.charts.tsaIctOutage = new Chart(document.getElementById('tsa-ict-outage-chart'), {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Outage hours',
+          data: [],
+          backgroundColor: CHART_WARNING,
+          borderRadius: 4,
+          maxBarThickness: 18,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: d.tooltip },
+        scales: {
+          x: {
+            min: 0,
+            ticks: { ...d.ticks, callback(v) { return `${v}h`; } },
+            grid: d.grid,
+            border: { display: false },
+            title: { display: true, text: 'Outage hours', color: d.color, font: { size: 11 } },
+          },
+          y: {
+            ticks: { ...d.ticks, font: { size: 9 } },
+            grid: { display: false },
+            border: { display: false },
+            title: { display: true, text: 'Element', color: d.color, font: { size: 11 } },
+          },
+        },
+      },
+    });
+
+    state.charts.tsaReactiveAvail = new Chart(document.getElementById('tsa-reactive-avail-chart'), {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Availability %',
+            data: [],
+            backgroundColor: CHART_SUCCESS,
+            borderRadius: 4,
+            maxBarThickness: 36,
+          },
+          {
+            label: 'Target',
+            data: [],
+            type: 'line',
+            borderColor: CHART_WARNING,
+            borderDash: [6, 4],
+            pointRadius: 0,
+            borderWidth: 2,
+            fill: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: d.tooltip },
+        scales: {
+          x: {
+            ticks: { ...d.ticks, maxRotation: 40, minRotation: 25, autoSkip: false, font: { size: 9 } },
+            grid: { display: false },
+            border: { display: false },
+            title: { display: true, text: 'Element', color: d.color, font: { size: 11 } },
+          },
+          y: {
+            min: 95,
+            max: 100,
+            ticks: { ...d.ticks, callback(v) { return `${v}%`; } },
+            grid: d.grid,
+            border: { display: false },
+            title: { display: true, text: 'Availability (%)', color: d.color, font: { size: 11 } },
+          },
+        },
+      },
+    });
+
+    state.charts.tsaReactiveOutage = new Chart(document.getElementById('tsa-reactive-outage-chart'), {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Outage hours',
+          data: [],
+          backgroundColor: CHART_WARNING,
+          borderRadius: 4,
+          maxBarThickness: 18,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: d.tooltip },
+        scales: {
+          x: {
+            min: 0,
+            ticks: { ...d.ticks, callback(v) { return `${v}h`; } },
+            grid: d.grid,
+            border: { display: false },
+            title: { display: true, text: 'Outage hours', color: d.color, font: { size: 11 } },
+          },
+          y: {
+            ticks: { ...d.ticks, font: { size: 9 } },
+            grid: { display: false },
+            border: { display: false },
+            title: { display: true, text: 'Element', color: d.color, font: { size: 11 } },
+          },
+        },
+      },
+    });
+
+    // TSA — Outage Analytics
+    const oa = state.data.tsa.outageAnalytics;
+    state.charts.tsaOutageCircle = new Chart(document.getElementById('tsa-outage-circle-chart'), {
+      type: 'bar',
+      data: {
+        labels: oa.byCircle.labels,
+        datasets: [
+          {
+            label: 'Shutdown',
+            data: oa.byCircle.shutdown.slice(),
+            backgroundColor: CHART_PRIMARY,
+            stack: 'outage',
+            borderRadius: 2,
+          },
+          {
+            label: 'Breakdown',
+            data: oa.byCircle.breakdown.slice(),
+            backgroundColor: CHART_DANGER,
+            stack: 'outage',
+            borderRadius: 2,
+          },
+          {
+            label: 'Tripping',
+            data: oa.byCircle.tripping.slice(),
+            backgroundColor: CHART_WARNING,
+            stack: 'outage',
+            borderRadius: 2,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { color: d.color, font: { size: 11 }, usePointStyle: true } },
+          tooltip: d.tooltip,
+        },
+        scales: {
+          x: { stacked: true, ticks: d.ticks, grid: { display: false }, border: { display: false } },
+          y: {
+            stacked: true,
+            min: 0,
+            ticks: { ...d.ticks, callback(v) { return `${v}h`; } },
+            grid: d.grid,
+            border: { display: false },
+            title: { display: true, text: 'Outage hours', color: d.color, font: { size: 11 } },
+          },
+        },
+      },
+    });
+
+    state.charts.tsaOutageTafm = new Chart(document.getElementById('tsa-outage-tafm-chart'), {
+      type: 'line',
+      data: {
+        labels: oa.tafmTrend.labels,
+        datasets: [
+          {
+            label: 'TAFM',
+            data: oa.tafmTrend.values.slice(),
+            borderColor: CHART_SUCCESS,
+            backgroundColor: 'rgba(0, 168, 112, 0.12)',
+            fill: false,
+            tension: 0.25,
+            pointRadius: 4,
+            pointBackgroundColor: CHART_SUCCESS,
+            borderWidth: 2,
+          },
+          {
+            label: `HERC target ${oa.target}%`,
+            data: oa.tafmTrend.labels.map(() => oa.target),
+            borderColor: CHART_WARNING,
+            borderDash: [6, 4],
+            pointRadius: 0,
+            borderWidth: 2,
+            fill: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: d.tooltip,
+        },
+        scales: {
+          x: { ticks: d.ticks, grid: { display: false }, border: { display: false } },
+          y: {
+            min: 98,
+            max: 100,
+            ticks: { ...d.ticks, callback(v) { return `${v}%`; } },
+            grid: d.grid,
+            border: { display: false },
+            title: { display: true, text: 'TAFM (%)', color: d.color, font: { size: 11 } },
+          },
+        },
+      },
+    });
+
+    state.charts.tsaOutageReasons = new Chart(document.getElementById('tsa-outage-reasons-chart'), {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Outage hours',
+          data: [],
+          backgroundColor: CHART_TEAL,
+          borderRadius: 4,
+          maxBarThickness: 16,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: d.tooltip },
+        scales: {
+          x: {
+            min: 0,
+            ticks: { ...d.ticks, callback(v) { return `${v}h`; } },
+            grid: d.grid,
+            border: { display: false },
+          },
+          y: {
+            ticks: { ...d.ticks, font: { size: 10 } },
+            grid: { display: false },
+            border: { display: false },
+          },
+        },
+      },
+    });
+
+    state.charts.tsaOutagePareto = new Chart(document.getElementById('tsa-outage-pareto-chart'), {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Non-availability hours',
+          data: [],
+          backgroundColor: [],
+          borderRadius: 4,
+          maxBarThickness: 16,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: d.tooltip },
+        scales: {
+          x: {
+            min: 0,
+            ticks: { ...d.ticks, callback(v) { return `${v}h`; } },
+            grid: d.grid,
+            border: { display: false },
+          },
+          y: {
+            ticks: { ...d.ticks, font: { size: 10 } },
+            grid: { display: false },
+            border: { display: false },
+          },
+        },
+      },
+    });
+
+    // TSA — Deemed / Exempt Register
+    state.charts.tsaDeemedCategory = new Chart(document.getElementById('tsa-deemed-category-chart'), {
+      type: 'bar',
+      data: {
+        labels: ['Shutdown', 'Breakdown', 'Tripping'],
+        datasets: [
+          {
+            label: 'Countable',
+            data: [0, 0, 0],
+            backgroundColor: CHART_WARNING,
+            stack: 'hours',
+            borderRadius: 2,
+            maxBarThickness: 72,
+          },
+          {
+            label: 'Deemed exempt',
+            data: [0, 0, 0],
+            backgroundColor: CHART_SUCCESS,
+            stack: 'hours',
+            borderRadius: 2,
+            maxBarThickness: 72,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { color: d.color, font: { size: 11 }, usePointStyle: true } },
+          tooltip: d.tooltip,
+        },
+        scales: {
+          x: { stacked: true, ticks: d.ticks, grid: { display: false }, border: { display: false } },
+          y: {
+            stacked: true,
+            min: 0,
+            ticks: { ...d.ticks, callback(v) { return `${v}h`; } },
+            grid: d.grid,
+            border: { display: false },
+            title: { display: true, text: 'Hours', color: d.color, font: { size: 11 } },
+          },
+        },
+      },
+    });
+
     scheduleChartRefresh();
   }
 
@@ -1673,6 +2794,576 @@
   function secsAgo() {
     const s = Math.max(1, Math.round((Date.now() - (state.lastUpdateAt || Date.now())) / 1000));
     return `${s} sec ago`;
+  }
+
+  function renderTsaExecutiveSummary() {
+    const tsa = state.data?.tsa;
+    if (!tsa) return;
+
+    const totalElements = tsa.elements.lines + tsa.elements.icts + tsa.elements.reactive;
+    const gapPp = tsa.monthlyTafm - tsa.target;
+
+    const setText = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    setText('tsa-kpi-tafm', `${tsa.monthlyTafm.toFixed(2)}%`);
+    setText('tsa-kpi-gap', `${gapPp.toFixed(2)} pp`);
+    setText('tsa-kpi-elements', String(totalElements));
+    setText('tsa-kpi-outage', `${tsa.countableOutageHr.toFixed(1)} hr`);
+    setText('tsa-kpi-repeat', String(tsa.repeatTripElements));
+    setText('tsa-gauge-value', `${tsa.monthlyTafm.toFixed(2)}%`);
+    setText('tsa-gauge-period', tsa.periodLabel);
+
+    const elementsSubtitle = document.querySelector('#view-tsa-executive-summary .kpi-card:nth-child(3) .kpi-subtitle');
+    if (elementsSubtitle) {
+      elementsSubtitle.textContent = `${tsa.elements.lines} lines · ${tsa.elements.icts} ICTs · ${tsa.elements.reactive} reactive`;
+    }
+
+    const notesEl = document.getElementById('tsa-regulatory-notes');
+    if (notesEl && Array.isArray(tsa.notes)) {
+      notesEl.innerHTML = tsa.notes.map((n) =>
+        `<li><span class="tsa-note-ref">${n.ref}</span> ${n.text}</li>`
+      ).join('');
+    }
+
+    const gaugeFloor = 97;
+    const gaugeSpan = 100 - gaugeFloor;
+    if (state.charts.tsaTafmTrend) {
+      state.charts.tsaTafmTrend.data.labels = tsa.trend.labels;
+      state.charts.tsaTafmTrend.data.datasets[0].data = tsa.trend.tafm.slice();
+      state.charts.tsaTafmTrend.data.datasets[1].data = tsa.trend.labels.map(() => tsa.target);
+      state.charts.tsaTafmTrend.data.datasets[1].label = `Target ${tsa.target}%`;
+      state.charts.tsaTafmTrend.update('none');
+    }
+    if (state.charts.tsaTafmGauge) {
+      state.charts.tsaTafmGauge.data.datasets[0].data = [
+        tsa.monthlyTafm - gaugeFloor,
+        gaugeSpan - (tsa.monthlyTafm - gaugeFloor),
+      ];
+      state.charts.tsaTafmGauge.update('none');
+    }
+    if (state.charts.tsaAvailCategory) {
+      state.charts.tsaAvailCategory.data.labels = tsa.category.labels;
+      state.charts.tsaAvailCategory.data.datasets[0].data = tsa.category.values.slice();
+      state.charts.tsaAvailCategory.update('none');
+    }
+  }
+
+  function enrichTsaAcLine(row) {
+    const weightage = row.silMw * row.cktKm;
+    const netAvailable = clamp(row.totalHours - row.forcedOutageHr + row.exemptHr, 0, row.totalHours);
+    const availability = row.totalHours > 0 ? (netAvailable / row.totalHours) * 100 : 100;
+    const weightedOutage = weightage * (row.forcedOutageHr / Math.max(row.totalHours, 1));
+    const shortName = row.name
+      .replace(/^(\d+kV)\s+(D\/C|S\/C)\s+/i, '')
+      .replace(/\s*\(HVPN Line\)\s*/i, '')
+      .trim();
+    return {
+      ...row,
+      weightage,
+      netAvailable,
+      availability,
+      weightedOutage,
+      shortName,
+    };
+  }
+
+  function getTsaAcLinesFiltered() {
+    const ac = state.data?.tsa?.acLines;
+    if (!ac) return [];
+    const filter = ac.voltageFilter || 'all';
+    return ac.lines
+      .map(enrichTsaAcLine)
+      .filter((row) => filter === 'all' || String(row.voltage) === String(filter));
+  }
+
+  function populateTsaAcVoltageFilter() {
+    const ac = state.data?.tsa?.acLines;
+    const sel = document.getElementById('tsa-ac-voltage-filter');
+    if (!ac || !sel) return;
+    const voltages = [...new Set(ac.lines.map((l) => l.voltage))].sort((a, b) => b - a);
+    const current = ac.voltageFilter || 'all';
+    sel.innerHTML = [
+      `<option value="all"${current === 'all' ? ' selected' : ''}>All</option>`,
+      ...voltages.map((v) =>
+        `<option value="${v}"${String(current) === String(v) ? ' selected' : ''}>${v} kV</option>`
+      ),
+    ].join('');
+  }
+
+  function exportTsaAcLinesCsv() {
+    const rows = getTsaAcLinesFiltered();
+    const headers = [
+      'Line Name', 'Voltage kV', 'Conductor', 'SIL MW', 'Ckt-Km', 'Weightage Wi',
+      'Total Hours', 'Forced Outage Hr', 'Exempt Hr', 'Net Available Hrs',
+      'Weighted Outage Hrs', 'Availability %',
+    ];
+    const lines = [headers.join(',')].concat(rows.map((r) => [
+      `"${r.name}"`,
+      r.voltage,
+      `"${r.conductor}"`,
+      r.silMw,
+      r.cktKm,
+      r.weightage.toFixed(1),
+      r.totalHours,
+      r.forcedOutageHr.toFixed(1),
+      r.exemptHr.toFixed(1),
+      r.netAvailable.toFixed(1),
+      r.weightedOutage.toFixed(2),
+      r.availability.toFixed(3),
+    ].join(',')));
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'tsa-ac-transmission-lines.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function renderTsaAcLines() {
+    const tsa = state.data?.tsa;
+    const ac = tsa?.acLines;
+    if (!ac) return;
+
+    const rows = getTsaAcLinesFiltered();
+    const target = ac.availTarget ?? tsa.target ?? 98.5;
+
+    const tbody = document.getElementById('tsa-ac-lines-body');
+    if (tbody) {
+      tbody.innerHTML = rows.map((r) => `
+        <tr>
+          <td>${r.shortName}</td>
+          <td class="font-mono text-right">${r.voltage}</td>
+          <td class="font-mono text-right">${r.silMw}</td>
+          <td class="font-mono text-right">${r.cktKm.toFixed(1)}</td>
+          <td class="font-mono text-right">${r.weightage.toLocaleString('en-IN', { maximumFractionDigits: 1 })}</td>
+          <td class="font-mono text-right tsa-cell-warn">${r.forcedOutageHr.toFixed(1)}</td>
+          <td class="font-mono text-right tsa-cell-ok">${r.availability.toFixed(2)}%</td>
+        </tr>`).join('');
+    }
+
+    if (state.charts.tsaAcAvail) {
+      state.charts.tsaAcAvail.data.labels = rows.map((r) => r.shortName);
+      state.charts.tsaAcAvail.data.datasets[0].data = rows.map((r) => Number(r.availability.toFixed(3)));
+      state.charts.tsaAcAvail.data.datasets[0].backgroundColor = rows.map((r) =>
+        r.availability >= target ? CHART_SUCCESS : CHART_DANGER
+      );
+      state.charts.tsaAcAvail.data.datasets[1].data = rows.map(() => target);
+      state.charts.tsaAcAvail.update('none');
+    }
+
+    if (state.charts.tsaAcOutage) {
+      const byOutage = [...rows].sort((a, b) => b.forcedOutageHr - a.forcedOutageHr);
+      state.charts.tsaAcOutage.data.labels = byOutage.map((r) => r.shortName);
+      state.charts.tsaAcOutage.data.datasets[0].data = byOutage.map((r) => Number(r.forcedOutageHr.toFixed(1)));
+      state.charts.tsaAcOutage.update('none');
+    }
+  }
+
+  function enrichTsaIct(row) {
+    const availability = row.totalHours > 0
+      ? ((row.totalHours - row.forcedOutageHr) / row.totalHours) * 100
+      : 100;
+    const shortName = row.name.replace(/^(\d+kV)\s+/i, '').trim();
+    const status = availability >= 98.5 ? 'Healthy' : availability >= 97 ? 'Watch' : 'Critical';
+    return { ...row, availability, shortName, status };
+  }
+
+  function getTsaIctRows() {
+    const ict = state.data?.tsa?.ict;
+    if (!ict) return [];
+    return ict.units.map(enrichTsaIct);
+  }
+
+  function renderTsaIct() {
+    const tsa = state.data?.tsa;
+    const ict = tsa?.ict;
+    if (!ict) return;
+
+    const rows = getTsaIctRows();
+    const target = ict.availTarget ?? tsa.target ?? 98.5;
+
+    const tbody = document.getElementById('tsa-ict-body');
+    if (tbody) {
+      tbody.innerHTML = rows.map((r) => {
+        const typeClass = r.type === 'Hot' ? 'is-hot' : 'is-general';
+        return `
+          <tr>
+            <td>
+              <div class="tsa-asset-cell">
+                <span class="tsa-asset-name">${r.name}</span>
+                <span class="tsa-asset-meta">${r.circle}</span>
+              </div>
+            </td>
+            <td class="font-mono">${r.ratio}</td>
+            <td class="font-mono text-right">${r.mva}</td>
+            <td><span class="tsa-type-pill ${typeClass}">${r.type}</span></td>
+            <td class="font-mono text-right">${r.totalHours}</td>
+            <td class="font-mono text-right tsa-cell-warn">${r.forcedOutageHr.toFixed(1)}</td>
+            <td class="font-mono text-right tsa-cell-ok">${r.availability.toFixed(3)}%</td>
+            <td>
+              <span class="tsa-status-pill">
+                <span class="tsa-status-dot" aria-hidden="true"></span>
+                ${r.status}
+              </span>
+            </td>
+          </tr>`;
+      }).join('');
+    }
+
+    if (state.charts.tsaIctAvail) {
+      state.charts.tsaIctAvail.data.labels = rows.map((r) => r.shortName);
+      state.charts.tsaIctAvail.data.datasets[0].data = rows.map((r) => Number(r.availability.toFixed(3)));
+      state.charts.tsaIctAvail.data.datasets[0].backgroundColor = rows.map((r) =>
+        r.availability >= target ? CHART_SUCCESS : CHART_DANGER
+      );
+      state.charts.tsaIctAvail.data.datasets[1].data = rows.map(() => target);
+      state.charts.tsaIctAvail.update('none');
+    }
+
+    if (state.charts.tsaIctOutage) {
+      const byOutage = [...rows].sort((a, b) => b.forcedOutageHr - a.forcedOutageHr);
+      state.charts.tsaIctOutage.data.labels = byOutage.map((r) => r.shortName);
+      state.charts.tsaIctOutage.data.datasets[0].data = byOutage.map((r) => Number(r.forcedOutageHr.toFixed(1)));
+      state.charts.tsaIctOutage.update('none');
+    }
+  }
+
+  function enrichTsaReactive(row) {
+    const availability = row.totalHours > 0
+      ? ((row.totalHours - row.forcedOutageHr) / row.totalHours) * 100
+      : 100;
+    const shortName = row.name
+      .replace(/^(\d+kV)\s+/i, '')
+      .replace(/\s*\[/, ' [')
+      .trim();
+    const status = availability >= 98.5 ? 'Healthy' : availability >= 97 ? 'Watch' : 'Critical';
+    return { ...row, availability, shortName, status };
+  }
+
+  function getTsaReactiveRows() {
+    const reactive = state.data?.tsa?.reactive;
+    if (!reactive) return { reactors: [], svc: [], all: [] };
+    const reactors = (reactive.reactors || []).map(enrichTsaReactive);
+    const svc = (reactive.svc || []).map(enrichTsaReactive);
+    return { reactors, svc, all: [...reactors, ...svc] };
+  }
+
+  function renderTsaReactiveTable(tbodyId, rows) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    tbody.innerHTML = rows.map((r) => `
+      <tr>
+        <td>
+          <div class="tsa-asset-cell">
+            <span class="tsa-asset-name">${r.name}</span>
+            <span class="tsa-asset-meta">${r.circle}</span>
+          </div>
+        </td>
+        <td class="font-mono text-right">${r.kv}</td>
+        <td class="font-mono text-right">${r.mvar}</td>
+        <td class="font-mono text-right">${r.totalHours}</td>
+        <td class="font-mono text-right tsa-cell-warn">${r.forcedOutageHr.toFixed(1)}</td>
+        <td class="font-mono text-right tsa-cell-ok">${r.availability.toFixed(3)}%</td>
+        <td>
+          <span class="tsa-status-pill">
+            <span class="tsa-status-dot" aria-hidden="true"></span>
+            ${r.status}
+          </span>
+        </td>
+      </tr>`).join('');
+  }
+
+  function exportTsaReactiveCsv() {
+    const { all } = getTsaReactiveRows();
+    const headers = ['Asset', 'Circle', 'kV', 'MVAR Wi', 'Ti', 'TNAi', 'Availability %', 'Status'];
+    const lines = [headers.join(',')].concat(all.map((r) => [
+      `"${r.name}"`,
+      `"${r.circle}"`,
+      r.kv,
+      r.mvar,
+      r.totalHours,
+      r.forcedOutageHr.toFixed(1),
+      r.availability.toFixed(3),
+      r.status,
+    ].join(',')));
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'tsa-reactive-power-assets.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function renderTsaReactive() {
+    const reactive = state.data?.tsa?.reactive;
+    if (!reactive) return;
+
+    const { reactors, svc, all } = getTsaReactiveRows();
+    const target = reactive.availTarget ?? state.data.tsa.target ?? 98.5;
+
+    renderTsaReactiveTable('tsa-reactive-reactors-body', reactors);
+    renderTsaReactiveTable('tsa-reactive-svc-body', svc);
+
+    if (state.charts.tsaReactiveAvail) {
+      state.charts.tsaReactiveAvail.data.labels = all.map((r) => r.shortName);
+      state.charts.tsaReactiveAvail.data.datasets[0].data = all.map((r) => Number(r.availability.toFixed(3)));
+      state.charts.tsaReactiveAvail.data.datasets[0].backgroundColor = all.map((r) =>
+        r.availability >= target ? CHART_SUCCESS : CHART_DANGER
+      );
+      state.charts.tsaReactiveAvail.data.datasets[1].data = all.map(() => target);
+      state.charts.tsaReactiveAvail.update('none');
+    }
+
+    if (state.charts.tsaReactiveOutage) {
+      const byOutage = [...all].sort((a, b) => b.forcedOutageHr - a.forcedOutageHr);
+      state.charts.tsaReactiveOutage.data.labels = byOutage.map((r) => r.shortName);
+      state.charts.tsaReactiveOutage.data.datasets[0].data = byOutage.map((r) => Number(r.forcedOutageHr.toFixed(1)));
+      state.charts.tsaReactiveOutage.update('none');
+    }
+  }
+
+  function renderTsaOutageAnalytics() {
+    const oa = state.data?.tsa?.outageAnalytics;
+    if (!oa) return;
+
+    if (state.charts.tsaOutageCircle) {
+      state.charts.tsaOutageCircle.data.labels = oa.byCircle.labels;
+      state.charts.tsaOutageCircle.data.datasets[0].data = oa.byCircle.shutdown.slice();
+      state.charts.tsaOutageCircle.data.datasets[1].data = oa.byCircle.breakdown.slice();
+      state.charts.tsaOutageCircle.data.datasets[2].data = oa.byCircle.tripping.slice();
+      state.charts.tsaOutageCircle.update('none');
+    }
+
+    if (state.charts.tsaOutageTafm) {
+      state.charts.tsaOutageTafm.data.labels = oa.tafmTrend.labels;
+      state.charts.tsaOutageTafm.data.datasets[0].data = oa.tafmTrend.values.slice();
+      state.charts.tsaOutageTafm.data.datasets[1].data = oa.tafmTrend.labels.map(() => oa.target);
+      state.charts.tsaOutageTafm.data.datasets[1].label = `HERC target ${oa.target}%`;
+      state.charts.tsaOutageTafm.update('none');
+    }
+
+    if (state.charts.tsaOutageReasons) {
+      const reasons = [...oa.reasons].sort((a, b) => b.hours - a.hours);
+      state.charts.tsaOutageReasons.data.labels = reasons.map((r) => r.label);
+      state.charts.tsaOutageReasons.data.datasets[0].data = reasons.map((r) => r.hours);
+      state.charts.tsaOutageReasons.update('none');
+    }
+
+    if (state.charts.tsaOutagePareto) {
+      const pareto = [...oa.pareto].sort((a, b) => b.hours - a.hours);
+      state.charts.tsaOutagePareto.data.labels = pareto.map((r) => r.label);
+      state.charts.tsaOutagePareto.data.datasets[0].data = pareto.map((r) => r.hours);
+      state.charts.tsaOutagePareto.data.datasets[0].backgroundColor = pareto.map((_, i) => {
+        if (i === 0) return CHART_DANGER;
+        if (i <= 2) return CHART_WARNING;
+        return CHART_PRIMARY;
+      });
+      state.charts.tsaOutagePareto.update('none');
+    }
+  }
+
+  function getTsaDeemedCategoryTotals(rows) {
+    const cats = ['Shutdown', 'Breakdown', 'Tripping'];
+    const countable = cats.map(() => 0);
+    const exempt = cats.map(() => 0);
+    rows.forEach((r) => {
+      const idx = cats.indexOf(r.category);
+      if (idx < 0) return;
+      if (r.countable === 'Deemed exempt') exempt[idx] += r.hours;
+      else countable[idx] += r.hours;
+    });
+    return { countable, exempt };
+  }
+
+  function categoryPillClass(category) {
+    if (category === 'Shutdown') return 'is-shutdown';
+    if (category === 'Breakdown') return 'is-breakdown';
+    return 'is-tripping';
+  }
+
+  function renderTsaDeemedExemptTable(rows) {
+    const tbody = document.getElementById('tsa-deemed-body');
+    if (!tbody) return;
+    tbody.innerHTML = rows.map((r) => {
+      const attachHtml = r.attach
+        ? `<a href="#" class="tsa-attach-link" data-file="${r.attach}"><i data-lucide="paperclip" class="h-3.5 w-3.5"></i>${r.attach}</a>`
+        : '';
+      return `
+      <tr>
+        <td class="font-mono">${r.date}</td>
+        <td>${r.element}</td>
+        <td><span class="tsa-category-pill ${categoryPillClass(r.category)}">${r.category}</span></td>
+        <td>${r.reason}</td>
+        <td class="font-mono text-right">${r.hours.toFixed(1)}</td>
+        <td>${r.shutdownBy}</td>
+        <td>${r.wtd ? '<span class="tsa-wtd-yes">Yes</span>' : '<span class="tsa-wtd-na">—</span>'}</td>
+        <td><span class="tsa-countable ${r.countable === 'Deemed exempt' ? 'is-exempt' : 'is-counted'}">${r.countable}</span></td>
+        <td>
+          <div class="tsa-remarks-cell">
+            <span>${r.remarks || '—'}</span>
+            ${attachHtml}
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  }
+
+  function exportTsaDeemedExemptCsv() {
+    const rows = state.data?.tsa?.deemedExempt?.rows || [];
+    const headers = [
+      'Date', 'Element', 'Category', 'Reason', 'Hours',
+      'Shutdown By', 'WTD', 'Countable', 'Remarks', 'Attach',
+    ];
+    const lines = [headers.join(',')].concat(rows.map((r) => [
+      r.date,
+      `"${r.element}"`,
+      r.category,
+      `"${r.reason}"`,
+      r.hours.toFixed(1),
+      `"${r.shutdownBy}"`,
+      r.wtd ? 'Yes' : '',
+      `"${r.countable}"`,
+      `"${(r.remarks || '').replace(/"/g, '""')}"`,
+      r.attach || '',
+    ].join(',')));
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'tsa-deemed-exempt-register.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function renderTsaDeemedExempt() {
+    const reg = state.data?.tsa?.deemedExempt;
+    if (!reg) return;
+
+    const rows = [...(reg.rows || [])].sort((a, b) => b.date.localeCompare(a.date));
+    renderTsaDeemedExemptTable(rows);
+
+    if (state.charts.tsaDeemedCategory) {
+      const { countable, exempt } = getTsaDeemedCategoryTotals(rows);
+      state.charts.tsaDeemedCategory.data.datasets[0].data = countable.map((v) => Number(v.toFixed(1)));
+      state.charts.tsaDeemedCategory.data.datasets[1].data = exempt.map((v) => Number(v.toFixed(1)));
+      state.charts.tsaDeemedCategory.update('none');
+    }
+  }
+
+  /** §H penalty: when Z=X+Y > 2, additional trips attract a 12-hour multiplier. */
+  function applyTsaSectionH(x, y) {
+    const z = x + y;
+    if (z <= 2) {
+      return { z, rule: '—', penaltyHrs: 0 };
+    }
+    // Short trips (Y): §H.c — each Y trip counted as 12 hours once threshold breached.
+    if (y > 0) {
+      return { z, rule: '§H.c — 12 × Y', penaltyHrs: 12 * y };
+    }
+    // Long trips only (X > 2): §H.d — excess beyond free band.
+    // Display uses doc form Z−(X+1); with Y=0 this equals max(X−2, 0) when rewritten on X.
+    const factor = Math.max(0, x - 2);
+    return { z, rule: '§H.d — 12 × (Z − (X+1))', penaltyHrs: 12 * factor };
+  }
+
+  function enrichTsaTrippingRow(row, totalHours, availTarget) {
+    const x = row.tripsOver10 || 0;
+    const y = row.tripsUnder10 || 0;
+    const { z, rule, penaltyHrs } = applyTsaSectionH(x, y);
+    const actualOutageHr = row.actualOutageHr || 0;
+    const effectiveOutageHr = actualOutageHr + penaltyHrs;
+    const availability = totalHours > 0
+      ? ((totalHours - effectiveOutageHr) / totalHours) * 100
+      : 100;
+    const status = availability >= availTarget ? 'Healthy' : 'Watch';
+    return {
+      ...row,
+      x,
+      y,
+      z,
+      rule,
+      penaltyHrs,
+      actualOutageHr,
+      effectiveOutageHr,
+      availability,
+      status,
+    };
+  }
+
+  function getTsaTrippingRows() {
+    const reg = state.data?.tsa?.trippingRegister;
+    if (!reg) return [];
+    const totalHours = reg.totalHours ?? 744;
+    const availTarget = reg.availTarget ?? state.data.tsa.target ?? 98.5;
+    return (reg.rows || []).map((r) => enrichTsaTrippingRow(r, totalHours, availTarget));
+  }
+
+  function renderTsaTrippingRegisterTable(rows) {
+    const tbody = document.getElementById('tsa-tripping-body');
+    if (!tbody) return;
+    tbody.innerHTML = rows.map((r) => `
+      <tr>
+        <td>
+          <div class="tsa-asset-cell">
+            <span class="tsa-asset-name">${r.name}</span>
+            <span class="tsa-asset-meta">${(r.circle || '').toUpperCase()}</span>
+          </div>
+        </td>
+        <td class="font-mono text-right">${r.x}</td>
+        <td class="font-mono text-right">${r.y}</td>
+        <td class="font-mono text-right ${r.z > 2 ? 'tsa-cell-warn' : ''}">${r.z}</td>
+        <td class="tsa-rule-cell">${r.rule}</td>
+        <td class="font-mono text-right">${r.actualOutageHr.toFixed(1)} hr</td>
+        <td class="font-mono text-right ${r.penaltyHrs > 0 ? 'tsa-cell-penalty' : ''}">${r.penaltyHrs > 0 ? `+${r.penaltyHrs}` : '—'}</td>
+        <td class="font-mono text-right">${r.effectiveOutageHr.toFixed(1)} hr</td>
+        <td class="font-mono text-right tsa-cell-ok">${r.availability.toFixed(3)}%</td>
+        <td>
+          <span class="tsa-status-pill ${r.status === 'Watch' ? 'is-watch' : 'is-healthy'}">
+            <span class="tsa-status-dot" aria-hidden="true"></span>
+            ${r.status}
+          </span>
+        </td>
+      </tr>`).join('');
+  }
+
+  function exportTsaTrippingRegisterCsv() {
+    const rows = getTsaTrippingRows();
+    const headers = [
+      'Element', 'Circle', 'X > 10 min', 'Y ≤ 10 min', 'Z = X+Y',
+      'Rule Applied', 'Actual Outage Hr', 'Penalty Hrs', 'Effective Outage Hr',
+      'Availability %', 'Status',
+    ];
+    const lines = [headers.join(',')].concat(rows.map((r) => [
+      `"${r.name}"`,
+      `"${r.circle || ''}"`,
+      r.x,
+      r.y,
+      r.z,
+      `"${r.rule}"`,
+      r.actualOutageHr.toFixed(1),
+      r.penaltyHrs,
+      r.effectiveOutageHr.toFixed(1),
+      r.availability.toFixed(3),
+      r.status,
+    ].join(',')));
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'tsa-tripping-register.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function renderTsaTrippingRegister() {
+    if (!state.data?.tsa?.trippingRegister) return;
+    renderTsaTrippingRegisterTable(getTsaTrippingRows());
   }
 
   function renderEnterpriseOverview() {
@@ -1997,6 +3688,102 @@
     updateAlarmNavIndicator();
   }
 
+  function renderSettings() {
+    const s = state.settingsAccess;
+    if (!s) return;
+
+    const setText = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val;
+    };
+
+    const roles = new Set(s.users.map((u) => u.role));
+    setText('set-users-count', String(s.users.length));
+    setText('set-roles-count', String(roles.size));
+    setText('set-rls-count', String(s.rlsPolicies.length));
+    setText('set-sessions-count', String(s.activeSessions));
+
+    const userStatusBadge = { active: 'badge-success', inactive: 'badge-warning' };
+    const usersBody = document.getElementById('set-users-body');
+    if (usersBody) {
+      usersBody.innerHTML = s.users.map((u) => `
+        <tr>
+          <td><strong>${u.name}</strong><br><span class="text-micro text-muted">${u.email}</span></td>
+          <td><span class="settings-role-tag">${u.role}</span></td>
+          <td>${u.scope}</td>
+          <td><span class="badge ${userStatusBadge[u.status] || 'badge-warning'}">${u.status.toUpperCase()}</span></td>
+          <td class="font-mono text-micro">${formatAlarmAge(u.lastLogin)}</td>
+        </tr>
+      `).join('');
+    }
+
+    const rlsBody = document.getElementById('set-rls-body');
+    if (rlsBody) {
+      rlsBody.innerHTML = s.rlsPolicies.map((p) => `
+        <tr>
+          <td><strong>${p.name}</strong></td>
+          <td><code class="settings-code">${p.resource}</code></td>
+          <td><code class="settings-code">${p.rule}</code></td>
+          <td class="text-micro">${p.roles}</td>
+          <td><span class="badge ${p.status === 'enabled' ? 'badge-success' : 'badge-warning'}">${p.status.toUpperCase()}</span></td>
+        </tr>
+      `).join('');
+    }
+
+    const scopeGrid = document.getElementById('set-scope-grid');
+    if (scopeGrid) {
+      scopeGrid.innerHTML = `
+        <table class="data-table data-table--compact">
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>Zones</th>
+              <th>Divisions</th>
+              <th>Substations</th>
+              <th>Alarms</th>
+              <th>Reports</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${s.scopeMatrix.map((row) => `
+              <tr>
+                <td><span class="settings-role-tag">${row.role}</span></td>
+                <td>${row.zones}</td>
+                <td>${row.divisions}</td>
+                <td>${row.substations}</td>
+                <td>${row.alarms}</td>
+                <td>${row.reports}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    const auditBody = document.getElementById('set-audit-body');
+    if (auditBody) {
+      auditBody.innerHTML = s.auditLog.map((e) => `
+        <tr>
+          <td class="font-mono text-micro">${formatTime(new Date(e.time))}<br>${formatAlarmAge(e.time)}</td>
+          <td>${e.user}</td>
+          <td><span class="settings-action-tag">${e.action}</span></td>
+          <td>${e.resource}</td>
+          <td>${e.scope}</td>
+          <td><span class="badge ${e.result === 'success' ? 'badge-success' : 'badge-danger'}">${e.result.toUpperCase()}</span></td>
+        </tr>
+      `).join('');
+    }
+
+    const mfaToggle = document.getElementById('set-mfa-toggle');
+    const auditToggle = document.getElementById('set-audit-toggle');
+    const ipToggle = document.getElementById('set-ip-toggle');
+    const timeoutSelect = document.getElementById('set-session-timeout');
+    if (mfaToggle) mfaToggle.checked = s.security.mfa;
+    if (auditToggle) auditToggle.checked = s.security.auditLogging;
+    if (ipToggle) ipToggle.checked = s.security.ipAllowlist;
+    if (timeoutSelect) timeoutSelect.value = s.security.sessionTimeout;
+  }
+
   function updateDOM() {
     const data = state.data;
 
@@ -2042,6 +3829,14 @@
     renderTransmissionLossAnalytics();
     renderPowerQualityAnalytics();
     renderLiveAlarms();
+    renderSettings();
+    renderTsaExecutiveSummary();
+    renderTsaAcLines();
+    renderTsaIct();
+    renderTsaReactive();
+    renderTsaOutageAnalytics();
+    renderTsaDeemedExempt();
+    renderTsaTrippingRegister();
 
     // Availability
     document.getElementById('availability-pct').textContent = `${data.availability.toFixed(2)}%`;
@@ -2339,6 +4134,8 @@
     if (mttrEl) mttrEl.textContent = `${u.mttrMin} min`;
     if (alertsEl) alertsEl.textContent = `${u.activeAlerts}`;
 
+    syncUptimeCauseChart();
+
     const tbody = document.getElementById('uptime-events-body');
     if (tbody) {
       tbody.innerHTML = u.events.map((e) => `
@@ -2358,11 +4155,7 @@
 
     // Overview
     if (state.charts.ovHealth) {
-      const healthy = data.assets.filter((a) => a.score > 75).length;
-      const degraded = data.assets.filter((a) => a.score >= 50 && a.score <= 75).length;
-      const critical = data.assets.filter((a) => a.score < 50).length;
-      state.charts.ovHealth.data.datasets[0].data = [healthy, degraded, critical];
-      state.charts.ovHealth.update('none');
+      syncOvHealthChart();
     }
 
     // Availability chart
@@ -2496,8 +4289,64 @@
     }
 
     if (state.charts.uptimeCause) {
-      state.charts.uptimeCause.data.datasets[0].data = Object.values(data.uptime.causes);
-      state.charts.uptimeCause.update('none');
+      syncUptimeCauseChart();
+    }
+
+    // TSA mock drift (live feel, stays near reference values)
+    if (data.tsa) {
+      data.tsa.monthlyTafm = clamp(data.tsa.monthlyTafm + rand(-0.02, 0.02), 98.8, 99.95);
+      data.tsa.countableOutageHr = clamp(data.tsa.countableOutageHr + rand(-0.4, 0.4), 70, 110);
+      data.tsa.trend.tafm = data.tsa.trend.tafm.map((v, i, arr) => {
+        if (i === arr.length - 1) return data.tsa.monthlyTafm;
+        return clamp(v + rand(-0.01, 0.01), 98.9, 99.95);
+      });
+      const cat = data.tsa.category.values;
+      const bump = rand(-0.6, 0.6);
+      cat[0] = clamp(cat[0] + bump, 40, 60);
+      cat[1] = clamp(cat[1] - bump * 0.5, 20, 35);
+      cat[2] = clamp(100 - cat[0] - cat[1], 10, 30);
+
+      if (data.tsa.acLines?.lines) {
+        data.tsa.acLines.lines.forEach((line) => {
+          line.forcedOutageHr = clamp(line.forcedOutageHr + rand(-0.15, 0.15), 0, 20);
+          line.exemptHr = clamp(line.exemptHr + rand(-0.05, 0.05), 0, 8);
+        });
+      }
+      if (data.tsa.ict?.units) {
+        data.tsa.ict.units.forEach((unit) => {
+          unit.forcedOutageHr = clamp(unit.forcedOutageHr + rand(-0.12, 0.12), 0, 16);
+        });
+      }
+      if (data.tsa.reactive) {
+        [...(data.tsa.reactive.reactors || []), ...(data.tsa.reactive.svc || [])].forEach((asset) => {
+          asset.forcedOutageHr = clamp(asset.forcedOutageHr + rand(-0.08, 0.08), 0, 12);
+        });
+      }
+      if (data.tsa.outageAnalytics) {
+        const oa = data.tsa.outageAnalytics;
+        ['shutdown', 'breakdown', 'tripping'].forEach((key) => {
+          oa.byCircle[key] = oa.byCircle[key].map((v) => clamp(v + rand(-0.2, 0.2), 0.2, 18));
+        });
+        oa.tafmTrend.values = oa.tafmTrend.values.map((v) =>
+          clamp(v + rand(-0.02, 0.02), 98.8, 99.95)
+        );
+        oa.reasons.forEach((r) => {
+          r.hours = clamp(r.hours + rand(-0.15, 0.15), 0.3, 16);
+        });
+        oa.pareto.forEach((r) => {
+          r.hours = clamp(r.hours + rand(-0.15, 0.15), 0.3, 16);
+        });
+      }
+      if (data.tsa.deemedExempt?.rows) {
+        data.tsa.deemedExempt.rows.forEach((r) => {
+          r.hours = clamp(r.hours + rand(-0.08, 0.08), 0.5, 16);
+        });
+      }
+      if (data.tsa.trippingRegister?.rows) {
+        data.tsa.trippingRegister.rows.forEach((r) => {
+          r.actualOutageHr = clamp(r.actualOutageHr + rand(-0.05, 0.05), 0, 20);
+        });
+      }
     }
 
     applyChartTimeFilter(false);
@@ -3063,6 +4912,20 @@
 
     document.getElementById('page-title').textContent = VIEW_TITLES[viewId] || 'Dashboard';
 
+    const filterToolbar = document.querySelector('.filter-toolbar');
+    if (filterToolbar) filterToolbar.hidden = viewId === 'settings';
+
+    // Keep TSA parent open when a TSA child view is selected
+    if (String(viewId).startsWith('tsa-')) {
+      const tsaGroup = document.getElementById('nav-tsa-group');
+      const tsaToggle = document.getElementById('nav-tsa-toggle');
+      if (tsaGroup && tsaToggle) {
+        tsaGroup.classList.add('is-open');
+        tsaToggle.classList.add('is-open');
+        tsaToggle.setAttribute('aria-expanded', 'true');
+      }
+    }
+
     document.getElementById('sidebar').classList.remove('open');
     const overlay = document.querySelector('.sidebar-overlay');
     if (overlay) overlay.remove();
@@ -3088,6 +4951,46 @@
 
     document.querySelectorAll('.nav-item[data-view]').forEach((btn) => {
       btn.addEventListener('click', () => switchView(btn.dataset.view, btn));
+    });
+
+    // Grouped sidebar menus: parent toggles reveal sub-menu items.
+    document.querySelectorAll('.nav-group-toggle').forEach((toggle) => {
+      toggle.addEventListener('click', () => {
+        const groupId = toggle.getAttribute('data-nav-group-target') || toggle.getAttribute('aria-controls');
+        const group = groupId ? document.getElementById(groupId) : null;
+        if (!group) return;
+        const open = group.classList.toggle('is-open');
+        toggle.classList.toggle('is-open', open);
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    });
+
+    document.getElementById('tsa-ac-voltage-filter')?.addEventListener('change', (e) => {
+      if (!state.data?.tsa?.acLines) return;
+      state.data.tsa.acLines.voltageFilter = e.target.value;
+      renderTsaAcLines();
+    });
+
+    document.getElementById('tsa-ac-export-csv')?.addEventListener('click', () => {
+      exportTsaAcLinesCsv();
+    });
+
+    document.getElementById('tsa-reactive-export-csv')?.addEventListener('click', () => {
+      exportTsaReactiveCsv();
+    });
+
+    document.getElementById('tsa-deemed-export-csv')?.addEventListener('click', () => {
+      exportTsaDeemedExemptCsv();
+    });
+
+    document.getElementById('tsa-tripping-export-csv')?.addEventListener('click', () => {
+      exportTsaTrippingRegisterCsv();
+    });
+
+    document.getElementById('tsa-deemed-body')?.addEventListener('click', (e) => {
+      const link = e.target.closest('.tsa-attach-link');
+      if (!link) return;
+      e.preventDefault();
     });
 
     document.querySelectorAll('.alarm-filter-tab').forEach((btn) => {
@@ -3146,6 +5049,32 @@
     document.getElementById('filter-apply').addEventListener('click', applyFilters);
     document.getElementById('filter-clear').addEventListener('click', clearAllFilters);
 
+    document.getElementById('set-save-security')?.addEventListener('click', () => {
+      if (!state.settingsAccess) return;
+      state.settingsAccess.security = {
+        mfa: document.getElementById('set-mfa-toggle')?.checked ?? false,
+        sessionTimeout: document.getElementById('set-session-timeout')?.value ?? '30',
+        auditLogging: document.getElementById('set-audit-toggle')?.checked ?? false,
+        ipAllowlist: document.getElementById('set-ip-toggle')?.checked ?? false,
+      };
+      const btn = document.getElementById('set-save-security');
+      const prev = btn.textContent;
+      btn.textContent = 'Saved';
+      btn.disabled = true;
+      setTimeout(() => {
+        btn.textContent = prev;
+        btn.disabled = false;
+      }, 1500);
+    });
+
+    document.getElementById('set-add-user-btn')?.addEventListener('click', () => {
+      window.alert('User provisioning is managed through your identity provider (mock).');
+    });
+
+    document.getElementById('set-export-audit')?.addEventListener('click', () => {
+      window.alert('Audit log export started (mock CSV download).');
+    });
+
     document.querySelectorAll('.chart-time-filter').forEach((sel) => {
       sel.addEventListener('change', (e) => setChartTimeFilter(e.target.value));
     });
@@ -3171,6 +5100,7 @@
     initFilters();
     initDateRangePicker();
     initMockData();
+    populateTsaAcVoltageFilter();
     lucide.createIcons();
     initCharts();
     initChartFocusMode();

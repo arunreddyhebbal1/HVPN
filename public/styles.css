@@ -299,6 +299,40 @@ body, .app-body {
 }
 .nav-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* ─── Sidebar: "Grid Analytics" grouped menu ───────────────────────── */
+.nav-group {
+  display: none;
+  flex-direction: column;
+  padding-left: 12px;
+}
+
+.nav-group.is-open {
+  display: flex;
+}
+
+.nav-group-toggle {
+  width: calc(100% - 16px);
+}
+
+.nav-chevron {
+  margin-left: auto;
+  opacity: 0.6;
+  transition: transform 0.15s ease;
+}
+
+.nav-group-toggle.is-open .nav-chevron {
+  transform: rotate(180deg);
+}
+
+/* Ensure grouped items keep consistent spacing */
+.nav-group .nav-item {
+  width: calc(100% - 16px);
+}
+
+.nav-submenu-item {
+  opacity: 0.95;
+}
+
 .sidebar-footer {
   padding: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -1104,14 +1138,6 @@ body.drp-scroll-lock {
   flex: 1;
   overflow-y: auto;
   padding: 16px 20px;
-}
-
-/* ─── Main content ─── */
-.main-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 20px;
-  position: relative;
 }
 
 .view { display: none; }
@@ -2038,6 +2064,90 @@ body.chart-focus-active {
 .status-warning { background: var(--warning); }
 .status-critical { background: var(--danger); }
 
+/* ─── Settings & access control ─── */
+.settings-form-stack { display: flex; flex-direction: column; gap: 14px; }
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.settings-row:last-of-type { border-bottom: none; }
+.settings-row-label { font-size: 13px; font-weight: 600; color: var(--text-primary); margin: 0; }
+.settings-row-hint { font-size: 11px; color: var(--text-secondary); margin: 2px 0 0; }
+.settings-select { min-width: 130px; height: 34px; }
+.settings-actions { padding-top: 4px; }
+.settings-role-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(0, 102, 204, 0.1);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+.dark .settings-role-tag { background: rgba(14, 165, 233, 0.15); color: #38bdf8; }
+.settings-code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.settings-action-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-secondary);
+}
+.dark .settings-action-tag { background: rgba(255, 255, 255, 0.08); }
+.settings-toggle {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.settings-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.settings-toggle-track {
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--border);
+  transition: background 0.2s;
+  position: relative;
+}
+.settings-toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.settings-toggle input:checked + .settings-toggle-track {
+  background: var(--primary);
+}
+.settings-toggle input:checked + .settings-toggle-track::after {
+  transform: translateX(18px);
+}
+
 /* ─── Lost load KPI enterprise ─── */
 .ll-kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 .ll-kpi-card {
@@ -2104,4 +2214,646 @@ body.chart-focus-active {
 :focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+/* ─── Shared TSA view layout (Executive Summary + AC Lines) ─── */
+.tsa-kpi-row {
+  gap: 16px;
+}
+
+.tsa-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 16px;
+}
+
+.tsa-gauge-wrap {
+  position: relative;
+  height: 200px;
+  min-height: 180px;
+}
+
+.tsa-gauge-center {
+  position: absolute;
+  left: 50%;
+  bottom: 18%;
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.tsa-gauge-value {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--warning);
+  line-height: 1.1;
+}
+
+.tsa-gauge-period {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.tsa-notes-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tsa-notes-list li {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.tsa-note-ref {
+  font-weight: 600;
+  color: var(--warning);
+  margin-right: 4px;
+}
+
+#view-tsa-ac-lines .tsa-cell-warn {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+#view-tsa-ac-lines .tsa-cell-ok {
+  color: var(--success);
+  font-weight: 600;
+}
+
+#view-tsa-ac-lines .tsa-ac-matrix th,
+#view-tsa-ac-lines .tsa-ac-matrix td {
+  white-space: nowrap;
+}
+
+#view-tsa-ac-lines .tsa-ac-matrix th.text-right,
+#view-tsa-ac-lines .tsa-ac-matrix td.text-right {
+  text-align: right;
+}
+
+#view-tsa-ac-lines .tsa-ac-matrix th:first-child,
+#view-tsa-ac-lines .tsa-ac-matrix td:first-child {
+  text-align: left;
+}
+
+#view-tsa-ict .tsa-cell-warn {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+#view-tsa-ict .tsa-cell-ok {
+  color: var(--success);
+  font-weight: 600;
+}
+
+#view-tsa-ict .tsa-ict-matrix th,
+#view-tsa-ict .tsa-ict-matrix td {
+  white-space: nowrap;
+}
+
+#view-tsa-ict .tsa-ict-matrix th.text-right,
+#view-tsa-ict .tsa-ict-matrix td.text-right {
+  text-align: right;
+}
+
+#view-tsa-ict .tsa-asset-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#view-tsa-ict .tsa-asset-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+#view-tsa-ict .tsa-asset-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+#view-tsa-ict .tsa-type-pill,
+#view-tsa-ict .tsa-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+}
+
+#view-tsa-ict .tsa-type-pill.is-general {
+  color: var(--success);
+  background: rgba(0, 168, 112, 0.12);
+  border-color: rgba(0, 168, 112, 0.35);
+}
+
+#view-tsa-ict .tsa-type-pill.is-hot {
+  color: var(--text-secondary);
+  background: rgba(107, 114, 128, 0.12);
+}
+
+#view-tsa-ict .tsa-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+#view-tsa-ict .panel-header .card__meta {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+/* Shared TSA page header (Reactive Assets + others) */
+.tsa-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.tsa-page-eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.tsa-page-title {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tsa-page-desc {
+  margin: 0;
+  max-width: 720px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.tsa-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#view-tsa-reactive .tsa-cell-warn {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+#view-tsa-reactive .tsa-cell-ok {
+  color: var(--success);
+  font-weight: 600;
+}
+
+#view-tsa-reactive .tsa-reactive-matrix th,
+#view-tsa-reactive .tsa-reactive-matrix td {
+  white-space: nowrap;
+}
+
+#view-tsa-reactive .tsa-reactive-matrix th.text-right,
+#view-tsa-reactive .tsa-reactive-matrix td.text-right {
+  text-align: right;
+}
+
+#view-tsa-reactive .tsa-asset-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#view-tsa-reactive .tsa-asset-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+#view-tsa-reactive .tsa-asset-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+#view-tsa-reactive .tsa-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid rgba(0, 168, 112, 0.35);
+  color: var(--success);
+  background: rgba(0, 168, 112, 0.12);
+}
+
+#view-tsa-reactive .tsa-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+#view-tsa-reactive .panel-header .card__meta {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .tsa-page-header {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 1100px) {
+  .tsa-kpi-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tsa-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .tsa-kpi-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* TSA — Deemed / Exempt Register */
+#view-tsa-deemed-exempt .panel-header .card__meta {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+#view-tsa-deemed-exempt .tsa-deemed-matrix th,
+#view-tsa-deemed-exempt .tsa-deemed-matrix td {
+  white-space: nowrap;
+}
+
+#view-tsa-deemed-exempt .tsa-deemed-matrix th.text-right,
+#view-tsa-deemed-exempt .tsa-deemed-matrix td.text-right {
+  text-align: right;
+}
+
+#view-tsa-deemed-exempt .tsa-category-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+#view-tsa-deemed-exempt .tsa-category-pill.is-shutdown {
+  color: #0066CC;
+  background: rgba(0, 102, 204, 0.1);
+  border-color: rgba(0, 102, 204, 0.35);
+}
+
+#view-tsa-deemed-exempt .tsa-category-pill.is-breakdown {
+  color: #DC2626;
+  background: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.35);
+}
+
+#view-tsa-deemed-exempt .tsa-category-pill.is-tripping {
+  color: #D97706;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(217, 119, 6, 0.4);
+}
+
+#view-tsa-deemed-exempt .tsa-wtd-yes {
+  color: var(--success);
+  font-weight: 600;
+}
+
+#view-tsa-deemed-exempt .tsa-wtd-na {
+  color: var(--text-secondary);
+}
+
+#view-tsa-deemed-exempt .tsa-countable {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+#view-tsa-deemed-exempt .tsa-countable.is-counted {
+  color: #D97706;
+}
+
+#view-tsa-deemed-exempt .tsa-countable.is-exempt {
+  color: var(--success);
+}
+
+#view-tsa-deemed-exempt .tsa-remarks-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+#view-tsa-deemed-exempt .tsa-attach-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #D97706;
+  font-weight: 600;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+#view-tsa-deemed-exempt .tsa-attach-link:hover {
+  text-decoration: underline;
+}
+
+/* TSA — Tripping Register */
+#view-tsa-tripping-register .tsa-tripping-matrix th,
+#view-tsa-tripping-register .tsa-tripping-matrix td {
+  white-space: nowrap;
+}
+
+#view-tsa-tripping-register .tsa-tripping-matrix th.text-right,
+#view-tsa-tripping-register .tsa-tripping-matrix td.text-right {
+  text-align: right;
+}
+
+#view-tsa-tripping-register .tsa-asset-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: normal;
+  min-width: 220px;
+}
+
+#view-tsa-tripping-register .tsa-asset-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+#view-tsa-tripping-register .tsa-asset-meta {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+#view-tsa-tripping-register .tsa-cell-warn {
+  color: var(--warning);
+  font-weight: 700;
+}
+
+#view-tsa-tripping-register .tsa-cell-ok {
+  color: var(--success);
+  font-weight: 600;
+}
+
+#view-tsa-tripping-register .tsa-cell-penalty {
+  color: var(--danger, #DC2626);
+  font-weight: 700;
+}
+
+#view-tsa-tripping-register .tsa-rule-cell {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+#view-tsa-tripping-register .tsa-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+#view-tsa-tripping-register .tsa-status-pill.is-healthy {
+  color: var(--success);
+  background: rgba(0, 168, 112, 0.12);
+  border-color: rgba(0, 168, 112, 0.35);
+}
+
+#view-tsa-tripping-register .tsa-status-pill.is-watch {
+  color: #D97706;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(217, 119, 6, 0.4);
+}
+
+#view-tsa-tripping-register .tsa-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Shared donut-split design (Asset Health + Downtime Root Cause) */
+.donut-split-body {
+  container-type: inline-size;
+  container-name: donut-split;
+  height: auto !important;
+  min-height: 260px;
+  padding: 16px 20px 20px;
+  overflow: hidden;
+}
+
+.donut-split-layout {
+  display: grid;
+  grid-template-columns: minmax(108px, 140px) minmax(0, 1fr);
+  align-items: center;
+  column-gap: clamp(16px, 3cqi, 36px);
+  row-gap: 16px;
+  width: 100%;
+  min-height: 220px;
+}
+
+.donut-split-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(14px, 4cqi, 22px);
+  min-width: 0;
+}
+
+.donut-split-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.donut-split-legend-bar {
+  width: 4px;
+  height: clamp(28px, 8cqi, 34px);
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.donut-split-legend-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.donut-split-legend-label {
+  font-size: clamp(11px, 2.8cqi, 12px);
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.2;
+}
+
+.donut-split-legend-value {
+  font-size: clamp(15px, 4.2cqi, 18px);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.15;
+}
+
+.donut-split-chart-wrap {
+  position: relative;
+  width: min(100%, 240px);
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  height: auto;
+  min-height: 0;
+  margin-inline: auto;
+  justify-self: center;
+}
+
+.donut-split-chart-wrap canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.donut-split-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+  gap: 2px;
+  padding: 12%;
+}
+
+.donut-split-center span {
+  font-size: clamp(11px, 5.5cqi, 13px);
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--text-secondary);
+  max-width: 8em;
+}
+
+@container donut-split (max-width: 420px) {
+  .donut-split-body {
+    min-height: 0;
+  }
+
+  .donut-split-layout {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    justify-items: stretch;
+  }
+
+  .donut-split-legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+    width: 100%;
+  }
+
+  .donut-split-chart-wrap {
+    width: min(100%, 220px);
+  }
+}
+
+@container donut-split (max-width: 280px) {
+  .donut-split-legend {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .donut-split-chart-wrap {
+    width: min(100%, 180px);
+  }
+
+  .donut-split-center span {
+    font-size: 11px;
+  }
+}
+
+@supports not (container-type: inline-size) {
+  @media (max-width: 1100px) {
+    .donut-split-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .donut-split-legend {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 16px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .donut-split-legend {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .donut-split-body {
+    padding: 12px 14px 16px;
+    min-height: 0;
+  }
+}
+
+.chart-focus-content .panel--focused .donut-split-body {
+  min-height: min(70vh, 520px);
+  height: auto !important;
+}
+
+.chart-focus-content .panel--focused .donut-split-layout {
+  min-height: min(60vh, 480px);
+  grid-template-columns: minmax(140px, 200px) minmax(0, 1fr);
+}
+
+.chart-focus-content .panel--focused .donut-split-chart-wrap {
+  width: min(100%, 360px);
+}
+
+@media (max-width: 720px) {
+  .chart-focus-content .panel--focused .donut-split-layout {
+    grid-template-columns: 1fr;
+  }
 }
