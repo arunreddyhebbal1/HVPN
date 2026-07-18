@@ -222,15 +222,23 @@
             <select id="filter-zone" class="filter-select"></select>
           </div>
           <div class="filter-field">
+            <label for="filter-circle" class="filter-label">Circle</label>
+            <select id="filter-circle" class="filter-select"></select>
+          </div>
+          <div class="filter-field">
             <label for="filter-division" class="filter-label">Division</label>
             <select id="filter-division" class="filter-select"></select>
           </div>
           <div class="filter-field">
-            <label for="filter-substation" class="filter-label">Substation</label>
+            <label for="filter-substation" class="filter-label">Sub Station</label>
             <select id="filter-substation" class="filter-select"></select>
           </div>
+          <div class="filter-field">
+            <label for="filter-voltage" class="filter-label">Voltage Level</label>
+            <select id="filter-voltage" class="filter-select" aria-label="Voltage Level"></select>
+          </div>
           <div class="filter-field filter-field-date">
-            <label class="filter-label" for="date-range-trigger">Date Range</label>
+            <label class="filter-label" for="date-range-trigger">Date</label>
             <button type="button" id="date-range-trigger" class="date-range-trigger" aria-haspopup="dialog" aria-expanded="false">
               <i data-lucide="calendar" class="h-4 w-4"></i>
               <span id="date-range-label">Last 7 Days</span>
@@ -253,7 +261,7 @@
                   <button type="button" class="drp-preset" data-preset="lastMonth">Last month</button>
                   <button type="button" class="drp-preset" data-preset="thisYear">This year</button>
                   <button type="button" class="drp-preset" data-preset="lastYear">Last year</button>
-                  <button type="button" class="drp-preset" data-preset="allTime">All time</button>
+                  <button type="button" class="drp-preset" data-preset="allTime">All</button>
                 </aside>
                 <div class="drp-main">
                   <div class="drp-calendars">
@@ -1713,6 +1721,7 @@
   </div>
 
   <script src="unispur-data.js"></script>
+  <script src="filter-hierarchy-data.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

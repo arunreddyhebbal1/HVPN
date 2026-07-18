@@ -14,9 +14,11 @@
     currentFeeder: 'all',
     alarmFilter: 'active',
     filters: {
-      zone: 'north-circle',
-      division: 'div-n1',
-      substation: 'alpha-1',
+      zone: 'all',
+      circle: 'all',
+      division: 'all',
+      substation: 'all',
+      voltageLevel: 'all',
       dateRange: null,
     },
     charts: {},
@@ -29,56 +31,185 @@
     lastUpdateAt: Date.now(),
   };
 
-  const FILTER_HIERARCHY = {
-    'north-circle': {
-      label: 'North Circle',
-      divisions: {
-        'div-n1': {
-          label: 'Northern Division I',
-          substations: {
-            'alpha-1': 'Substation Alpha-1',
-            'beta-2': 'Substation Beta-2',
-          },
-        },
-        'div-n2': {
-          label: 'Northern Division II',
-          substations: {
-            'gamma-3': 'Substation Gamma-3',
-          },
-        },
-      },
-    },
-    'south-circle': {
-      label: 'South Circle',
-      divisions: {
-        'div-s1': {
-          label: 'Southern Division I',
-          substations: {
-            'delta-4': 'Substation Delta-4',
-            'epsilon-5': 'Substation Epsilon-5',
-          },
-        },
-        'div-s2': {
-          label: 'Southern Division II',
-          substations: {
-            'zeta-6': 'Substation Zeta-6',
-          },
-        },
-      },
-    },
-    'east-circle': {
-      label: 'East Circle',
-      divisions: {
-        'div-e1': {
-          label: 'Eastern Division I',
-          substations: {
-            'eta-7': 'Substation Eta-7',
-            'theta-8': 'Substation Theta-8',
-          },
-        },
-      },
-    },
-  };
+  const FILTER_ALL = 'all';
+  const FILTER_DATA = window.FILTER_HIERARCHY_DATA || {};
+  const FILTER_HIERARCHY = FILTER_DATA.hierarchy || {};
+  const FILTER_VOLTAGE_LEVELS = FILTER_DATA.voltageLevels || [
+    { value: 'all', label: 'All' },
+    { value: '400', label: '400 kV' },
+    { value: '220', label: '220 kV' },
+    { value: '132', label: '132 kV' },
+    { value: '66', label: '66 kV' },
+  ];
+
+  function isFilterAll(value) {
+    return !value || value === FILTER_ALL;
+  }
+
+  function getFilterZone() {
+    if (isFilterAll(state.filters.zone)) return null;
+    return FILTER_HIERARCHY[state.filters.zone] || null;
+  }
+
+  function getCirclesForFilter() {
+    if (!isFilterAll(state.filters.zone)) {
+      return getFilterZone()?.circles || {};
+    }
+    const merged = {};
+    Object.values(FILTER_HIERARCHY).forEach((zone) => {
+      Object.assign(merged, zone.circles || {});
+    });
+    return merged;
+  }
+
+  function getFilterCircle() {
+    if (isFilterAll(state.filters.circle)) return null;
+    return getCirclesForFilter()[state.filters.circle] || null;
+  }
+
+  function getDivisionsForFilter() {
+    const circles = getCirclesForFilter();
+    if (!isFilterAll(state.filters.circle)) {
+      return circles[state.filters.circle]?.divisions || {};
+    }
+    const merged = {};
+    Object.values(circles).forEach((circle) => {
+      Object.assign(merged, circle.divisions || {});
+    });
+    return merged;
+  }
+
+  function getFilterDivision() {
+    if (isFilterAll(state.filters.division)) return null;
+    return getDivisionsForFilter()[state.filters.division] || null;
+  }
+
+  function getSubstationsForFilter() {
+    const divisions = getDivisionsForFilter();
+    if (!isFilterAll(state.filters.division)) {
+      return divisions[state.filters.division]?.substations || {};
+    }
+    const merged = {};
+    Object.values(divisions).forEach((div) => {
+      Object.assign(merged, div.substations || {});
+    });
+    return merged;
+  }
+
+  function getSubstationLabel(ss) {
+    if (!ss) return '';
+    if (typeof ss === 'string') return ss;
+    return ss.name || ss.code || '';
+  }
+
+  function getSubstationVoltage(ss) {
+    if (!ss || typeof ss === 'string') return '';
+    return String(ss.voltage || '');
+  }
+
+  function getFilteredSubstationEntries(substations) {
+    const entries = Object.entries(substations || {});
+    const volt = state.filters.voltageLevel;
+    if (isFilterAll(volt)) return entries;
+    return entries.filter(([, ss]) => getSubstationVoltage(ss) === String(volt));
+  }
+
+  function ensureChildSelection(map, current) {
+    if (isFilterAll(current)) return FILTER_ALL;
+    if (map && map[current]) return current;
+    return FILTER_ALL;
+  }
+
+  function resetFilterCascadeFromZone() {
+    state.filters.circle = ensureChildSelection(getCirclesForFilter(), state.filters.circle);
+    resetFilterCascadeFromCircle();
+  }
+
+  function resetFilterCascadeFromCircle() {
+    state.filters.division = ensureChildSelection(getDivisionsForFilter(), state.filters.division);
+    resetFilterCascadeFromDivision();
+  }
+
+  function resetFilterCascadeFromDivision() {
+    const entries = getFilteredSubstationEntries(getSubstationsForFilter());
+    const keys = Object.fromEntries(entries);
+    state.filters.substation = ensureChildSelection(keys, state.filters.substation);
+  }
+
+  function filterAllOption(selected) {
+    return `<option value="${FILTER_ALL}"${isFilterAll(selected) ? ' selected' : ''}>All</option>`;
+  }
+
+  function listHierarchyCircles() {
+    const out = [];
+    Object.entries(FILTER_HIERARCHY).forEach(([zoneKey, zone]) => {
+      Object.entries(zone.circles || {}).forEach(([circleKey, circle]) => {
+        const label = String(circle?.label || '').trim();
+        if (!label || isFilterAll(label) || label.toLowerCase() === 'all') return;
+        if (isFilterAll(circleKey) || String(circleKey).toLowerCase() === 'all') return;
+        out.push({ zoneKey, circleKey, label });
+      });
+    });
+    return out.sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  function buildOutageByCircleSeries() {
+    const circles = listHierarchyCircles();
+    return {
+      labels: circles.map((c) => c.label),
+      circleKeys: circles.map((c) => c.circleKey),
+      zoneKeys: circles.map((c) => c.zoneKey),
+      shutdown: circles.map((_, i) => Number((0.8 + (i % 4) * 0.9 + rand(0.2, 2.4)).toFixed(1))),
+      breakdown: circles.map((_, i) => Number((1.1 + (i % 5) * 1.1 + rand(0.3, 3.2)).toFixed(1))),
+      tripping: circles.map((_, i) => Number((1.4 + (i % 3) * 1.6 + rand(0.4, 4.5)).toFixed(1))),
+    };
+  }
+
+  function getOutageByCircleChartSeries(oa) {
+    const by = oa?.byCircle;
+    if (!by?.labels?.length) {
+      return { labels: [], shutdown: [], breakdown: [], tripping: [] };
+    }
+
+    const selectedCircle = !isFilterAll(state.filters.circle)
+      ? getCirclesForFilter()[state.filters.circle]
+      : null;
+
+    const indices = [];
+    by.labels.forEach((label, i) => {
+      const name = String(label || '').trim();
+      if (!name || isFilterAll(name) || name.toLowerCase() === 'all') return;
+
+      const circleKey = by.circleKeys?.[i];
+      const zoneKey = by.zoneKeys?.[i];
+      if (circleKey && (isFilterAll(circleKey) || String(circleKey).toLowerCase() === 'all')) return;
+
+      if (!isFilterAll(state.filters.zone) && zoneKey && zoneKey !== state.filters.zone) return;
+      if (!isFilterAll(state.filters.circle)) {
+        const matchesKey = circleKey && circleKey === state.filters.circle;
+        const matchesLabel = selectedCircle && selectedCircle.label === name;
+        if (!matchesKey && !matchesLabel) return;
+      }
+      indices.push(i);
+    });
+
+    const use = indices.length
+      ? indices
+      : by.labels
+        .map((label, i) => ({ label, i }))
+        .filter(({ label }) => {
+          const name = String(label || '').trim();
+          return name && !isFilterAll(name) && name.toLowerCase() !== 'all';
+        })
+        .map(({ i }) => i);
+
+    return {
+      labels: use.map((i) => by.labels[i]),
+      shutdown: use.map((i) => Number(by.shutdown[i]) || 0),
+      breakdown: use.map((i) => Number(by.breakdown[i]) || 0),
+      tripping: use.map((i) => Number(by.tripping[i]) || 0),
+    };
+  }
 
   const VIEW_TITLES = {
     overview: 'Dashboard Overview',
@@ -1000,12 +1131,7 @@
           target: 98.5,
           lowThreshold: 98.5,
           highThreshold: 99.9,
-          byCircle: {
-            labels: ['North', 'South', 'Central', 'West'],
-            shutdown: [4.2, 2.1, 1.0, 0.8],
-            breakdown: [7.5, 3.4, 1.2, 1.5],
-            tripping: [11.8, 10.6, 2.0, 1.8],
-          },
+          byCircle: buildOutageByCircleSeries(),
           tafmTrend: {
             labels: ['Apr', 'May', 'Jun', 'Jul', 'Aug'],
             values: [99.32, 99.48, 99.21, 99.41, 99.62],
@@ -1748,9 +1874,11 @@
   function exportOaCircleCsv() {
     const oa = state.data?.tsa?.outageAnalytics;
     if (!oa?.byCircle) return;
-    const stats = getOaCircleSeries(oa.byCircle);
+    const series = getOutageByCircleChartSeries(oa);
+    const stats = getOaCircleSeries(series);
     const lines = ['Circle,Shutdown (h),Breakdown (h),Tripping (h),Total (h)'];
     stats.labels.forEach((label, i) => {
+      if (!label || isFilterAll(label) || String(label).toLowerCase() === 'all') return;
       lines.push([
         label,
         stats.shutdown[i].toFixed(1),
@@ -1923,16 +2051,17 @@
     const oa = state.data.tsa.outageAnalytics;
     const d = chartDefaults();
     const softGrid = isDark() ? 'rgba(148, 163, 184, 0.10)' : 'rgba(148, 163, 184, 0.16)';
+    const series = getOutageByCircleChartSeries(oa);
 
     return new Chart(document.getElementById('tsa-outage-circle-chart'), {
       type: 'bar',
       plugins: [oaCirclePremiumPlugin],
       data: {
-        labels: oa.byCircle.labels,
+        labels: series.labels,
         datasets: [
           {
             label: 'Shutdown',
-            data: oa.byCircle.shutdown.slice(),
+            data: series.shutdown.slice(),
             backgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_COLORS.shutdown),
             hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, {
               top: '#93C5FD',
@@ -1944,11 +2073,11 @@
             borderSkipped: false,
             borderRadius: oaCircleStackRadius,
             stack: 'outage',
-            maxBarThickness: 48,
+            maxBarThickness: 42,
           },
           {
             label: 'Breakdown',
-            data: oa.byCircle.breakdown.slice(),
+            data: series.breakdown.slice(),
             backgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_COLORS.breakdown),
             hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, {
               top: '#FCA5A5',
@@ -1960,11 +2089,11 @@
             borderSkipped: false,
             borderRadius: oaCircleStackRadius,
             stack: 'outage',
-            maxBarThickness: 48,
+            maxBarThickness: 42,
           },
           {
             label: 'Tripping',
-            data: oa.byCircle.tripping.slice(),
+            data: series.tripping.slice(),
             backgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_COLORS.tripping),
             hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, {
               top: '#FCD34D',
@@ -1976,7 +2105,7 @@
             borderSkipped: false,
             borderRadius: oaCircleStackRadius,
             stack: 'outage',
-            maxBarThickness: 48,
+            maxBarThickness: 42,
           },
         ],
       },
@@ -2029,7 +2158,7 @@
             footerFont: { size: 11, weight: '600' },
             callbacks: {
               title(items) {
-                return items[0]?.label ? `${items[0].label} Circle` : '';
+                return items[0]?.label || '';
               },
               label(ctx) {
                 const v = Number(ctx.parsed.y) || 0;
@@ -2047,8 +2176,11 @@
             stacked: true,
             ticks: {
               ...d.ticks,
-              font: { size: 11, weight: '600', family: "'Inter', sans-serif" },
+              font: { size: 10, weight: '600', family: "'Inter', sans-serif" },
               color: d.color,
+              maxRotation: 40,
+              minRotation: 0,
+              autoSkip: false,
             },
             grid: { display: false },
             border: { display: false },
@@ -3773,10 +3905,11 @@
     if (!oa) return;
 
     if (state.charts.tsaOutageCircle) {
-      state.charts.tsaOutageCircle.data.labels = oa.byCircle.labels;
-      state.charts.tsaOutageCircle.data.datasets[0].data = oa.byCircle.shutdown.slice();
-      state.charts.tsaOutageCircle.data.datasets[1].data = oa.byCircle.breakdown.slice();
-      state.charts.tsaOutageCircle.data.datasets[2].data = oa.byCircle.tripping.slice();
+      const series = getOutageByCircleChartSeries(oa);
+      state.charts.tsaOutageCircle.data.labels = series.labels;
+      state.charts.tsaOutageCircle.data.datasets[0].data = series.shutdown.slice();
+      state.charts.tsaOutageCircle.data.datasets[1].data = series.breakdown.slice();
+      state.charts.tsaOutageCircle.data.datasets[2].data = series.tripping.slice();
       state.charts.tsaOutageCircle.update('none');
     }
 
@@ -5016,35 +5149,70 @@
   // ─── Filters ─────────────────────────────────────────────────────────
   function populateZoneFilter() {
     const sel = document.getElementById('filter-zone');
-    sel.innerHTML = Object.entries(FILTER_HIERARCHY).map(([k, v]) =>
-      `<option value="${k}"${k === state.filters.zone ? ' selected' : ''}>${v.label}</option>`
-    ).join('');
+    if (!sel) return;
+    const options = Object.entries(FILTER_HIERARCHY)
+      .sort((a, b) => a[1].label.localeCompare(b[1].label))
+      .map(([k, v]) =>
+        `<option value="${k}"${k === state.filters.zone ? ' selected' : ''}>${v.label}</option>`
+      )
+      .join('');
+    sel.innerHTML = filterAllOption(state.filters.zone) + options;
+    sel.value = isFilterAll(state.filters.zone) ? FILTER_ALL : state.filters.zone;
+  }
+
+  function populateCircleFilter() {
+    const sel = document.getElementById('filter-circle');
+    if (!sel) return;
+    resetFilterCascadeFromZone();
+    const circles = getCirclesForFilter();
+    const options = Object.entries(circles)
+      .sort((a, b) => a[1].label.localeCompare(b[1].label))
+      .map(([k, v]) =>
+        `<option value="${k}"${k === state.filters.circle ? ' selected' : ''}>${v.label}</option>`
+      )
+      .join('');
+    sel.innerHTML = filterAllOption(state.filters.circle) + options;
+    sel.value = isFilterAll(state.filters.circle) ? FILTER_ALL : state.filters.circle;
   }
 
   function populateDivisionFilter() {
     const sel = document.getElementById('filter-division');
-    const zone = FILTER_HIERARCHY[state.filters.zone];
-    if (!zone) return;
-    sel.innerHTML = Object.entries(zone.divisions).map(([k, v]) =>
-      `<option value="${k}"${k === state.filters.division ? ' selected' : ''}>${v.label}</option>`
-    ).join('');
-    if (!zone.divisions[state.filters.division]) {
-      state.filters.division = Object.keys(zone.divisions)[0];
-      sel.value = state.filters.division;
-    }
+    if (!sel) return;
+    resetFilterCascadeFromCircle();
+    const divisions = getDivisionsForFilter();
+    const options = Object.entries(divisions)
+      .sort((a, b) => a[1].label.localeCompare(b[1].label))
+      .map(([k, v]) =>
+        `<option value="${k}"${k === state.filters.division ? ' selected' : ''}>${v.label}</option>`
+      )
+      .join('');
+    sel.innerHTML = filterAllOption(state.filters.division) + options;
+    sel.value = isFilterAll(state.filters.division) ? FILTER_ALL : state.filters.division;
   }
 
   function populateSubstationFilter() {
     const sel = document.getElementById('filter-substation');
-    const div = FILTER_HIERARCHY[state.filters.zone]?.divisions[state.filters.division];
-    if (!div) return;
-    sel.innerHTML = Object.entries(div.substations).map(([k, v]) =>
-      `<option value="${k}"${k === state.filters.substation ? ' selected' : ''}>${v}</option>`
+    if (!sel) return;
+    resetFilterCascadeFromDivision();
+    const entries = getFilteredSubstationEntries(getSubstationsForFilter())
+      .sort((a, b) => getSubstationLabel(a[1]).localeCompare(getSubstationLabel(b[1])));
+    const options = entries.map(([k, v]) =>
+      `<option value="${k}"${k === state.filters.substation ? ' selected' : ''}>${getSubstationLabel(v)}</option>`
     ).join('');
-    if (!div.substations[state.filters.substation]) {
-      state.filters.substation = Object.keys(div.substations)[0];
-      sel.value = state.filters.substation;
-    }
+    sel.innerHTML = filterAllOption(state.filters.substation) + options;
+    sel.value = isFilterAll(state.filters.substation) ? FILTER_ALL : state.filters.substation;
+  }
+
+  function populateVoltageFilter() {
+    const sel = document.getElementById('filter-voltage');
+    if (!sel) return;
+    const levels = FILTER_VOLTAGE_LEVELS.some((o) => o.value === FILTER_ALL)
+      ? FILTER_VOLTAGE_LEVELS
+      : [{ value: FILTER_ALL, label: 'All' }, ...FILTER_VOLTAGE_LEVELS];
+    sel.innerHTML = levels.map((opt) =>
+      `<option value="${opt.value}"${opt.value === state.filters.voltageLevel ? ' selected' : ''}>${opt.label}</option>`
+    ).join('');
+    if (isFilterAll(state.filters.voltageLevel)) sel.value = FILTER_ALL;
   }
 
   // ─── Date range picker ───────────────────────────────────────────────
@@ -5057,7 +5225,7 @@
     lastMonth: 'Last month',
     thisYear: 'This year',
     lastYear: 'Last year',
-    allTime: 'All time',
+    allTime: 'All',
     custom: 'Custom range',
     last7d: 'Last 7 Days',
   };
@@ -5509,27 +5677,38 @@
 
   function initFilters() {
     populateZoneFilter();
+    populateCircleFilter();
     populateDivisionFilter();
     populateSubstationFilter();
+    populateVoltageFilter();
   }
 
   function applyFilters() {
     state.filters.zone = document.getElementById('filter-zone').value;
+    state.filters.circle = document.getElementById('filter-circle').value;
     state.filters.division = document.getElementById('filter-division').value;
     state.filters.substation = document.getElementById('filter-substation').value;
+    state.filters.voltageLevel = document.getElementById('filter-voltage')?.value || 'all';
     initMockData();
     updateDOM();
     scheduleChartRefresh();
   }
 
   function clearAllFilters() {
-    state.filters.zone = 'north-circle';
-    state.filters.division = 'div-n1';
-    state.filters.substation = 'alpha-1';
-    state.filters.dateRange = drpDefaultRange();
+    state.filters.zone = FILTER_ALL;
+    state.filters.circle = FILTER_ALL;
+    state.filters.division = FILTER_ALL;
+    state.filters.substation = FILTER_ALL;
+    state.filters.voltageLevel = FILTER_ALL;
+    state.filters.dateRange = (() => {
+      const ranges = drpGetPresetRanges(new Date());
+      return { ...ranges.allTime, preset: 'allTime' };
+    })();
     populateZoneFilter();
+    populateCircleFilter();
     populateDivisionFilter();
     populateSubstationFilter();
+    populateVoltageFilter();
     drpUpdateTriggerLabel();
     initMockData();
     updateDOM();
@@ -5704,24 +5883,36 @@
 
     document.getElementById('filter-zone').addEventListener('change', (e) => {
       state.filters.zone = e.target.value;
-      state.filters.division = Object.keys(FILTER_HIERARCHY[state.filters.zone].divisions)[0];
-      state.filters.substation = Object.keys(
-        FILTER_HIERARCHY[state.filters.zone].divisions[state.filters.division].substations
-      )[0];
+      state.filters.circle = FILTER_ALL;
+      state.filters.division = FILTER_ALL;
+      state.filters.substation = FILTER_ALL;
+      populateCircleFilter();
+      populateDivisionFilter();
+      populateSubstationFilter();
+    });
+
+    document.getElementById('filter-circle')?.addEventListener('change', (e) => {
+      state.filters.circle = e.target.value;
+      state.filters.division = FILTER_ALL;
+      state.filters.substation = FILTER_ALL;
       populateDivisionFilter();
       populateSubstationFilter();
     });
 
     document.getElementById('filter-division').addEventListener('change', (e) => {
       state.filters.division = e.target.value;
-      state.filters.substation = Object.keys(
-        FILTER_HIERARCHY[state.filters.zone].divisions[state.filters.division].substations
-      )[0];
+      state.filters.substation = FILTER_ALL;
       populateSubstationFilter();
     });
 
     document.getElementById('filter-substation').addEventListener('change', (e) => {
       state.filters.substation = e.target.value;
+    });
+
+    document.getElementById('filter-voltage')?.addEventListener('change', (e) => {
+      state.filters.voltageLevel = e.target.value;
+      state.filters.substation = FILTER_ALL;
+      populateSubstationFilter();
     });
 
     document.getElementById('filter-apply').addEventListener('click', applyFilters);

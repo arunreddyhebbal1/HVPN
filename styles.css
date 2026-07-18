@@ -583,12 +583,19 @@ body, .app-body {
 /* ─── Filter toolbar ─── */
 .filter-toolbar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(130px, 1fr)) auto;
+  grid-template-columns: repeat(6, minmax(110px, 1fr)) auto;
   align-items: end;
-  gap: 10px 12px;
+  gap: 10px 10px;
   padding: 10px 20px;
   background: var(--bg-card);
   border-top: 1px solid var(--border);
+}
+
+@media (max-width: 1200px) {
+  .filter-toolbar {
+    grid-template-columns: repeat(3, minmax(120px, 1fr));
+  }
+  .filter-actions { grid-column: 1 / -1; justify-self: start; }
 }
 
 @media (max-width: 900px) {
