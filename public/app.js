@@ -998,6 +998,8 @@
         },
         outageAnalytics: {
           target: 98.5,
+          lowThreshold: 98.5,
+          highThreshold: 99.9,
           byCircle: {
             labels: ['North', 'South', 'Central', 'West'],
             shutdown: [4.2, 2.1, 1.0, 0.8],
@@ -1465,6 +1467,739 @@
         responsive: true,
         maintainAspectRatio: false,
         plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      },
+    });
+  }
+
+  const TAFM_CYAN = '#22D3EE';
+  const TAFM_BLUE = '#3B82F6';
+  const TAFM_DEEP = '#1D4ED8';
+  const TAFM_ALERT = '#EF4444';
+
+  function getTafmThresholds(oa) {
+    const low = oa?.lowThreshold ?? oa?.target ?? 98.5;
+    const high = oa?.highThreshold ?? 99.9;
+    return { low, high };
+  }
+
+  function getTafmExtrema(values) {
+    let peakIdx = 0;
+    let lowIdx = 0;
+    values.forEach((v, i) => {
+      if (v > values[peakIdx]) peakIdx = i;
+      if (v < values[lowIdx]) lowIdx = i;
+    });
+    return { peakIdx, lowIdx, peak: values[peakIdx], lowest: values[lowIdx] };
+  }
+
+  function tafmValueColor(value, lowTh, highTh, minV, maxV) {
+    if (value < lowTh || value > highTh) return TAFM_ALERT;
+    const span = Math.max(maxV - minV, 0.0001);
+    const t = clamp((value - minV) / span, 0, 1);
+    if (t < 0.45) return TAFM_CYAN;
+    if (t < 0.75) return TAFM_BLUE;
+    return TAFM_DEEP;
+  }
+
+  function makeTafmAreaFill(chart) {
+    const { ctx, chartArea } = chart;
+    if (!chartArea) return 'rgba(59, 130, 246, 0.12)';
+    const g = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+    g.addColorStop(0, 'rgba(59, 130, 246, 0.32)');
+    g.addColorStop(0.55, 'rgba(34, 211, 238, 0.12)');
+    g.addColorStop(1, 'rgba(59, 130, 246, 0)');
+    return g;
+  }
+
+  const tafmPremiumPlugin = {
+    id: 'tafmPremiumMarkers',
+    afterDatasetsDraw(chart) {
+      if (chart.canvas?.id !== 'tsa-outage-tafm-chart') return;
+      const meta = chart.getDatasetMeta(0);
+      if (!meta?.data?.length) return;
+
+      const cfg = chart.options.plugins?.tafmPremiumMarkers || {};
+      const values = chart.data.datasets[0].data.map(Number);
+      const labels = chart.data.labels || [];
+      const { peakIdx, lowIdx } = getTafmExtrema(values);
+      const pulse = (Math.sin(Date.now() / 420) + 1) / 2;
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea) return;
+
+      const roundRectPath = (x, y, w, h, r) => {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      };
+
+      const drawHighlight = (idx, kind) => {
+        const pt = meta.data[idx];
+        if (!pt) return;
+        const x = pt.x;
+        const y = pt.y;
+        const baseY = scales.y.getPixelForValue(scales.y.min);
+        const value = values[idx];
+        const stamp = labels[idx] || '';
+        const isAlert = value < (cfg.lowThreshold ?? 98.5) || value > (cfg.highThreshold ?? 99.9);
+        const isLowest = kind === 'lowest';
+        const core = (isAlert || isLowest) ? TAFM_ALERT : TAFM_DEEP;
+
+        const beamGrad = ctx.createLinearGradient(0, y, 0, baseY);
+        beamGrad.addColorStop(0, 'rgba(59, 130, 246, 0)');
+        beamGrad.addColorStop(0.35, (isAlert || isLowest) ? 'rgba(239, 68, 68, 0.14)' : 'rgba(59, 130, 246, 0.18)');
+        beamGrad.addColorStop(1, (isAlert || isLowest) ? 'rgba(239, 68, 68, 0.58)' : 'rgba(37, 99, 235, 0.72)');
+        const beamW = 18;
+        ctx.save();
+        ctx.fillStyle = beamGrad;
+        roundRectPath(x - beamW / 2, y, beamW, Math.max(baseY - y, 1), 6);
+        ctx.fill();
+        ctx.restore();
+
+        const glowR = 14 + pulse * 5;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(x, y, glowR, 0, Math.PI * 2);
+        ctx.fillStyle = (isAlert || isLowest)
+          ? `rgba(239, 68, 68, ${0.18 + pulse * 0.12})`
+          : `rgba(59, 130, 246, ${0.18 + pulse * 0.14})`;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x, y, 7, 0, Math.PI * 2);
+        ctx.fillStyle = core;
+        ctx.shadowColor = 'rgba(15, 23, 42, 0.28)';
+        ctx.shadowBlur = 8;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.stroke();
+        ctx.restore();
+
+        const title = kind === 'peak' ? 'Peak' : 'Lowest';
+        const line2 = `${value.toFixed(2)}% · ${stamp}`;
+        ctx.save();
+        ctx.font = `600 10px 'Inter', sans-serif`;
+        const w1 = ctx.measureText(title).width;
+        ctx.font = `600 12px 'Inter', sans-serif`;
+        const w2 = ctx.measureText(line2).width;
+        const boxW = Math.max(w1, w2) + 20;
+        const boxH = 36;
+        let boxX = x - boxW / 2;
+        let boxY = y - boxH - 16;
+        boxX = Math.max(chartArea.left + 4, Math.min(boxX, chartArea.right - boxW - 4));
+        boxY = Math.max(chartArea.top + 4, boxY);
+
+        ctx.fillStyle = isDark() ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.96)';
+        ctx.strokeStyle = isDark() ? 'rgba(148, 163, 184, 0.25)' : 'rgba(226, 232, 240, 0.95)';
+        ctx.lineWidth = 1;
+        ctx.shadowColor = 'rgba(15, 23, 42, 0.12)';
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetY = 3;
+        roundRectPath(boxX, boxY, boxW, boxH, 10);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(x - 5, boxY + boxH);
+        ctx.lineTo(x, boxY + boxH + 6);
+        ctx.lineTo(x + 5, boxY + boxH);
+        ctx.closePath();
+        ctx.fillStyle = isDark() ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.96)';
+        ctx.fill();
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = isDark() ? '#94A3B8' : '#64748B';
+        ctx.font = `600 10px 'Inter', sans-serif`;
+        ctx.fillText(title, boxX + boxW / 2, boxY + 14);
+        ctx.fillStyle = isDark() ? '#F8FAFC' : '#0F172A';
+        ctx.font = `600 12px 'Inter', sans-serif`;
+        ctx.fillText(line2, boxX + boxW / 2, boxY + 28);
+        ctx.restore();
+
+        if (scales.x) {
+          const labelY = scales.x.bottom - 2;
+          ctx.save();
+          ctx.font = `600 11px 'Inter', sans-serif`;
+          const tw = ctx.measureText(String(stamp)).width + 16;
+          const lx = x - tw / 2;
+          ctx.fillStyle = (isAlert || isLowest) ? 'rgba(239, 68, 68, 0.92)' : 'rgba(37, 99, 235, 0.95)';
+          roundRectPath(lx, labelY - 16, tw, 18, 9);
+          ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(String(stamp), x, labelY - 7);
+          ctx.restore();
+        }
+      };
+
+      if (peakIdx !== lowIdx) {
+        drawHighlight(lowIdx, 'lowest');
+        drawHighlight(peakIdx, 'peak');
+      } else {
+        drawHighlight(peakIdx, 'peak');
+      }
+    },
+  };
+
+  let tafmPulseRaf = null;
+  function stopTafmPulse() {
+    if (tafmPulseRaf) {
+      cancelAnimationFrame(tafmPulseRaf);
+      tafmPulseRaf = null;
+    }
+  }
+  function startTafmPulse() {
+    stopTafmPulse();
+    const tick = () => {
+      if (state.currentView === 'tsa-outage-analytics' && state.charts.tsaOutageTafm) {
+        state.charts.tsaOutageTafm.draw();
+        tafmPulseRaf = requestAnimationFrame(tick);
+      } else {
+        tafmPulseRaf = null;
+      }
+    };
+    tafmPulseRaf = requestAnimationFrame(tick);
+  }
+
+  const OA_CIRCLE_COLORS = {
+    shutdown: { top: '#60A5FA', bottom: '#1D4ED8', solid: '#3B82F6' },
+    breakdown: { top: '#F87171', bottom: '#991B1B', solid: '#DC2626' },
+    tripping: { top: '#FBBF24', bottom: '#B45309', solid: '#F59E0B' },
+  };
+
+  function getOaCircleSeries(byCircle) {
+    const labels = byCircle?.labels || [];
+    const shutdown = (byCircle?.shutdown || []).map(Number);
+    const breakdown = (byCircle?.breakdown || []).map(Number);
+    const tripping = (byCircle?.tripping || []).map(Number);
+    const totals = labels.map((_, i) =>
+      (shutdown[i] || 0) + (breakdown[i] || 0) + (tripping[i] || 0)
+    );
+    let highestIdx = 0;
+    totals.forEach((t, i) => {
+      if (t > totals[highestIdx]) highestIdx = i;
+    });
+    const typeSums = {
+      Shutdown: shutdown.reduce((s, v) => s + v, 0),
+      Breakdown: breakdown.reduce((s, v) => s + v, 0),
+      Tripping: tripping.reduce((s, v) => s + v, 0),
+    };
+    const majorCause = Object.entries(typeSums).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+    const totalHours = totals.reduce((s, v) => s + v, 0);
+    let events = 0;
+    labels.forEach((_, i) => {
+      if ((shutdown[i] || 0) > 0.05) events += 1;
+      if ((breakdown[i] || 0) > 0.05) events += 1;
+      if ((tripping[i] || 0) > 0.05) events += 1;
+    });
+    return {
+      labels,
+      shutdown,
+      breakdown,
+      tripping,
+      totals,
+      highestIdx,
+      highestLabel: labels[highestIdx] || '—',
+      highestTotal: totals[highestIdx] || 0,
+      majorCause,
+      typeSums,
+      totalHours,
+      events,
+    };
+  }
+
+  function makeOaCircleBarGradient(chart, palette) {
+    const { ctx, chartArea } = chart;
+    if (!chartArea) return palette.solid;
+    const g = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+    g.addColorStop(0, palette.bottom);
+    g.addColorStop(0.55, palette.solid);
+    g.addColorStop(1, palette.top);
+    return g;
+  }
+
+  function oaCircleStackRadius(ctx) {
+    const chart = ctx.chart;
+    const i = ctx.dataIndex;
+    const ds = ctx.datasetIndex;
+    const vals = chart.data.datasets.map((d) => Number(d.data[i]) || 0);
+    let first = -1;
+    let last = -1;
+    vals.forEach((v, idx) => {
+      if (v > 0.001) {
+        if (first < 0) first = idx;
+        last = idx;
+      }
+    });
+    const r = 8;
+    if (first < 0) return 0;
+    if (ds === first && ds === last) return r;
+    if (ds === first) return { bottomLeft: r, bottomRight: r, topLeft: 0, topRight: 0 };
+    if (ds === last) return { topLeft: r, topRight: r, bottomLeft: 0, bottomRight: 0 };
+    return 0;
+  }
+
+  function exportOaCircleCsv() {
+    const oa = state.data?.tsa?.outageAnalytics;
+    if (!oa?.byCircle) return;
+    const stats = getOaCircleSeries(oa.byCircle);
+    const lines = ['Circle,Shutdown (h),Breakdown (h),Tripping (h),Total (h)'];
+    stats.labels.forEach((label, i) => {
+      lines.push([
+        label,
+        stats.shutdown[i].toFixed(1),
+        stats.breakdown[i].toFixed(1),
+        stats.tripping[i].toFixed(1),
+        stats.totals[i].toFixed(1),
+      ].join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'outage-by-circle.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const oaCirclePremiumPlugin = {
+    id: 'oaCirclePremium',
+    beforeDatasetsDraw(chart) {
+      if (chart.canvas?.id !== 'tsa-outage-circle-chart') return;
+      chart.$oaElevated = [];
+      const hover = chart.getActiveElements()[0]?.index;
+      if (hover == null || hover < 0) return;
+      const dy = 4;
+      chart.data.datasets.forEach((_, di) => {
+        const el = chart.getDatasetMeta(di).data[hover];
+        if (!el || el.hidden) return;
+        chart.$oaElevated.push({ el, y: el.y, base: el.base });
+        el.y -= dy;
+        el.base -= dy;
+      });
+    },
+    afterDatasetsDraw(chart) {
+      if (chart.canvas?.id !== 'tsa-outage-circle-chart') return;
+      const { ctx, chartArea } = chart;
+      if (!chartArea) return;
+
+      const roundRectPath = (x, y, w, h, r) => {
+        const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + rr, y);
+        ctx.arcTo(x + w, y, x + w, y + h, rr);
+        ctx.arcTo(x + w, y + h, x, y + h, rr);
+        ctx.arcTo(x, y + h, x, y, rr);
+        ctx.arcTo(x, y, x + w, y, rr);
+        ctx.closePath();
+      };
+
+      const labels = chart.data.labels || [];
+      const totals = labels.map((_, i) =>
+        chart.data.datasets.reduce((s, ds) => s + (Number(ds.data[i]) || 0), 0)
+      );
+      let highestIdx = 0;
+      totals.forEach((t, i) => {
+        if (t > totals[highestIdx]) highestIdx = i;
+      });
+
+      const meta0 = chart.getDatasetMeta(0);
+      const metaTop = chart.getDatasetMeta(chart.data.datasets.length - 1);
+      if (!meta0?.data?.length || !metaTop?.data?.length) return;
+
+      const pulse = (Math.sin(Date.now() / 500) + 1) / 2;
+
+      totals.forEach((total, i) => {
+        const topBar = metaTop.data[i];
+        const bottomBar = meta0.data[i];
+        if (!topBar || !bottomBar) return;
+
+        const x = topBar.x;
+        const topY = Math.min(...chart.data.datasets.map((_, di) => {
+          const el = chart.getDatasetMeta(di).data[i];
+          return el ? el.y : Infinity;
+        }));
+        const baseY = Math.max(...chart.data.datasets.map((_, di) => {
+          const el = chart.getDatasetMeta(di).data[i];
+          return el ? el.base : -Infinity;
+        }));
+        const width = topBar.width || 28;
+        const isHighest = i === highestIdx;
+
+        if (isHighest) {
+          ctx.save();
+          ctx.shadowColor = `rgba(59, 130, 246, ${0.45 + pulse * 0.25})`;
+          ctx.shadowBlur = 18 + pulse * 8;
+          ctx.shadowOffsetY = 4;
+          ctx.strokeStyle = `rgba(96, 165, 250, ${0.85 + pulse * 0.15})`;
+          ctx.lineWidth = 2.5;
+          roundRectPath(x - width / 2 - 4, topY - 4, width + 8, Math.max(baseY - topY, 1) + 8, 10);
+          ctx.stroke();
+          ctx.restore();
+
+          const badge = 'Highest';
+          ctx.save();
+          ctx.font = `700 10px 'Inter', sans-serif`;
+          const bw = ctx.measureText(badge).width + 16;
+          const bh = 18;
+          let bx = x - bw / 2;
+          let by = topY - 38;
+          bx = Math.max(chartArea.left + 2, Math.min(bx, chartArea.right - bw - 2));
+          by = Math.max(chartArea.top + 2, by);
+          ctx.fillStyle = 'rgba(37, 99, 235, 0.95)';
+          ctx.shadowColor = 'rgba(37, 99, 235, 0.35)';
+          ctx.shadowBlur = 10;
+          roundRectPath(bx, by, bw, bh, 9);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = '#FFFFFF';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(badge, bx + bw / 2, by + bh / 2 + 0.5);
+          ctx.restore();
+        }
+
+        const label = `${total.toFixed(1)}h`;
+        ctx.save();
+        ctx.font = `600 11px 'Inter', sans-serif`;
+        const tw = ctx.measureText(label).width + 12;
+        const th = 18;
+        let lx = x - tw / 2;
+        let ly = topY - (isHighest ? 56 : 22);
+        lx = Math.max(chartArea.left + 2, Math.min(lx, chartArea.right - tw - 2));
+        ly = Math.max(chartArea.top + (isHighest ? 22 : 2), ly);
+        ctx.fillStyle = isDark() ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.96)';
+        ctx.strokeStyle = isDark() ? 'rgba(148, 163, 184, 0.28)' : 'rgba(226, 232, 240, 0.95)';
+        ctx.lineWidth = 1;
+        ctx.shadowColor = 'rgba(15, 23, 42, 0.12)';
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetY = 2;
+        roundRectPath(lx, ly, tw, th, 8);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.stroke();
+        ctx.fillStyle = isDark() ? '#F8FAFC' : '#0F172A';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, lx + tw / 2, ly + th / 2 + 0.5);
+        ctx.restore();
+      });
+
+      (chart.$oaElevated || []).forEach(({ el, y, base }) => {
+        el.y = y;
+        el.base = base;
+      });
+      chart.$oaElevated = [];
+    },
+  };
+
+  let oaCirclePulseRaf = null;
+  function stopOaCirclePulse() {
+    if (oaCirclePulseRaf) {
+      cancelAnimationFrame(oaCirclePulseRaf);
+      oaCirclePulseRaf = null;
+    }
+  }
+  function startOaCirclePulse() {
+    stopOaCirclePulse();
+    const tick = () => {
+      if (state.currentView === 'tsa-outage-analytics' && state.charts.tsaOutageCircle) {
+        state.charts.tsaOutageCircle.draw();
+        oaCirclePulseRaf = requestAnimationFrame(tick);
+      } else {
+        oaCirclePulseRaf = null;
+      }
+    };
+    oaCirclePulseRaf = requestAnimationFrame(tick);
+  }
+
+  function buildTsaOutageCircleChart() {
+    const oa = state.data.tsa.outageAnalytics;
+    const d = chartDefaults();
+    const softGrid = isDark() ? 'rgba(148, 163, 184, 0.10)' : 'rgba(148, 163, 184, 0.16)';
+
+    return new Chart(document.getElementById('tsa-outage-circle-chart'), {
+      type: 'bar',
+      plugins: [oaCirclePremiumPlugin],
+      data: {
+        labels: oa.byCircle.labels,
+        datasets: [
+          {
+            label: 'Shutdown',
+            data: oa.byCircle.shutdown.slice(),
+            backgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_COLORS.shutdown),
+            hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, {
+              top: '#93C5FD',
+              bottom: '#2563EB',
+              solid: '#60A5FA',
+            }),
+            borderColor: 'transparent',
+            borderWidth: 0,
+            borderSkipped: false,
+            borderRadius: oaCircleStackRadius,
+            stack: 'outage',
+            maxBarThickness: 48,
+          },
+          {
+            label: 'Breakdown',
+            data: oa.byCircle.breakdown.slice(),
+            backgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_COLORS.breakdown),
+            hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, {
+              top: '#FCA5A5',
+              bottom: '#B91C1C',
+              solid: '#F87171',
+            }),
+            borderColor: 'transparent',
+            borderWidth: 0,
+            borderSkipped: false,
+            borderRadius: oaCircleStackRadius,
+            stack: 'outage',
+            maxBarThickness: 48,
+          },
+          {
+            label: 'Tripping',
+            data: oa.byCircle.tripping.slice(),
+            backgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_COLORS.tripping),
+            hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, {
+              top: '#FCD34D',
+              bottom: '#D97706',
+              solid: '#FBBF24',
+            }),
+            borderColor: 'transparent',
+            borderWidth: 0,
+            borderSkipped: false,
+            borderRadius: oaCircleStackRadius,
+            stack: 'outage',
+            maxBarThickness: 48,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: {
+          duration: 900,
+          easing: 'easeOutQuart',
+          delay: (ctx) => (ctx.type === 'data' ? ctx.dataIndex * 70 + ctx.datasetIndex * 45 : 0),
+        },
+        interaction: { mode: 'index', intersect: false },
+        onHover(evt, elements) {
+          const target = evt.native?.target || evt.chart?.canvas;
+          if (target) target.style.cursor = elements.length ? 'pointer' : 'default';
+        },
+        layout: { padding: { top: 44, right: 8, bottom: 4, left: 4 } },
+        datasets: {
+          bar: {
+            categoryPercentage: 0.62,
+            barPercentage: 0.78,
+          },
+        },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              color: d.color,
+              font: { size: 11, weight: '500', family: "'Inter', sans-serif" },
+              usePointStyle: true,
+              pointStyle: 'rectRounded',
+              padding: 16,
+              boxWidth: 10,
+              boxHeight: 10,
+            },
+          },
+          tooltip: {
+            backgroundColor: 'rgba(15, 23, 42, 0.94)',
+            titleColor: '#F8FAFC',
+            bodyColor: '#CBD5E1',
+            footerColor: '#F8FAFC',
+            borderColor: 'rgba(148, 163, 184, 0.25)',
+            borderWidth: 1,
+            padding: 12,
+            cornerRadius: 10,
+            displayColors: true,
+            boxPadding: 6,
+            titleFont: { size: 12, weight: '600' },
+            bodyFont: { size: 11 },
+            footerFont: { size: 11, weight: '600' },
+            callbacks: {
+              title(items) {
+                return items[0]?.label ? `${items[0].label} Circle` : '';
+              },
+              label(ctx) {
+                const v = Number(ctx.parsed.y) || 0;
+                return ` ${ctx.dataset.label}: ${v.toFixed(1)}h`;
+              },
+              footer(items) {
+                const total = items.reduce((s, it) => s + (Number(it.parsed.y) || 0), 0);
+                return `Total: ${total.toFixed(1)}h`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            stacked: true,
+            ticks: {
+              ...d.ticks,
+              font: { size: 11, weight: '600', family: "'Inter', sans-serif" },
+              color: d.color,
+            },
+            grid: { display: false },
+            border: { display: false },
+          },
+          y: {
+            stacked: true,
+            min: 0,
+            grace: '8%',
+            ticks: {
+              ...d.ticks,
+              font: { size: 10, family: "'Inter', sans-serif" },
+              callback(v) { return `${v}h`; },
+            },
+            grid: {
+              color: softGrid,
+              drawTicks: false,
+              lineWidth: 1,
+            },
+            border: { display: false },
+            title: {
+              display: true,
+              text: 'Outage hours',
+              color: d.color,
+              font: { size: 11, weight: '500', family: "'Inter', sans-serif" },
+              padding: { bottom: 4 },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  function buildTsaOutageTafmChart() {
+    const oa = state.data.tsa.outageAnalytics;
+    const d = chartDefaults();
+    const { low, high } = getTafmThresholds(oa);
+    const values = oa.tafmTrend.values.slice();
+    const minV = Math.min(...values);
+    const maxV = Math.max(...values);
+    const { peakIdx, lowIdx } = getTafmExtrema(values);
+
+    return new Chart(document.getElementById('tsa-outage-tafm-chart'), {
+      type: 'line',
+      plugins: [tafmPremiumPlugin],
+      data: {
+        labels: oa.tafmTrend.labels,
+        datasets: [
+          {
+            label: 'TAFM',
+            data: values,
+            borderColor: TAFM_BLUE,
+            borderWidth: 3,
+            borderCapStyle: 'round',
+            borderJoinStyle: 'round',
+            tension: 0.42,
+            fill: true,
+            pointHoverRadius: 7,
+            pointHoverBorderWidth: 3,
+            pointHoverBorderColor: '#fff',
+            pointBackgroundColor: (ctx) => tafmValueColor(values[ctx.dataIndex], low, high, minV, maxV),
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: (ctx) => (ctx.dataIndex === peakIdx || ctx.dataIndex === lowIdx ? 0 : 3.5),
+            segment: {
+              borderColor: (ctx) => {
+                const v0 = ctx.p0.parsed.y;
+                const v1 = ctx.p1.parsed.y;
+                if (v0 < low || v0 > high || v1 < low || v1 > high) return TAFM_ALERT;
+                return tafmValueColor((v0 + v1) / 2, low, high, minV, maxV);
+              },
+            },
+            backgroundColor(ctx) {
+              return makeTafmAreaFill(ctx.chart);
+            },
+          },
+          {
+            label: `HERC target ${oa.target}%`,
+            data: oa.tafmTrend.labels.map(() => oa.target),
+            borderColor: 'rgba(245, 158, 11, 0.85)',
+            borderDash: [6, 5],
+            pointRadius: 0,
+            borderWidth: 1.5,
+            fill: false,
+            tension: 0,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        animation: { duration: 1400, easing: 'easeInOutQuart' },
+        plugins: {
+          legend: { display: false },
+          tafmPremiumMarkers: { lowThreshold: low, highThreshold: high },
+          tooltip: {
+            enabled: true,
+            backgroundColor: isDark() ? 'rgba(15, 23, 42, 0.94)' : 'rgba(255, 255, 255, 0.97)',
+            titleColor: isDark() ? '#F8FAFC' : '#0F172A',
+            bodyColor: isDark() ? '#CBD5E1' : '#475569',
+            borderColor: isDark() ? 'rgba(148, 163, 184, 0.25)' : 'rgba(226, 232, 240, 1)',
+            borderWidth: 1,
+            padding: 12,
+            cornerRadius: 12,
+            displayColors: false,
+            titleFont: { size: 12, weight: '600', family: "'Inter', sans-serif" },
+            bodyFont: { size: 13, weight: '500', family: "'Inter', sans-serif" },
+            callbacks: {
+              title(items) {
+                return items[0]?.label ? `Period · ${items[0].label}` : '';
+              },
+              label(item) {
+                if (item.datasetIndex !== 0) return `Target ${Number(item.raw).toFixed(2)}%`;
+                return `TAFM  ${Number(item.raw).toFixed(2)}%`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: d.color,
+              font: { size: 11, weight: '600', family: "'Inter', sans-serif" },
+              padding: 8,
+            },
+            grid: { display: false },
+            border: { display: false },
+          },
+          y: {
+            min: 98,
+            max: 100,
+            ticks: {
+              color: d.color,
+              font: { size: 11, family: "'Inter', sans-serif" },
+              callback(v) { return `${v}%`; },
+              padding: 8,
+            },
+            grid: {
+              color: isDark() ? 'rgba(148, 163, 184, 0.12)' : 'rgba(148, 163, 184, 0.28)',
+              borderDash: [4, 4],
+              drawTicks: false,
+            },
+            border: { display: false },
+            title: {
+              display: true,
+              text: 'TAFM (%)',
+              color: d.color,
+              font: { size: 11, weight: '600', family: "'Inter', sans-serif" },
+            },
+          },
+        },
       },
     });
   }
@@ -2578,103 +3313,9 @@
     });
 
     // TSA — Outage Analytics
-    const oa = state.data.tsa.outageAnalytics;
-    state.charts.tsaOutageCircle = new Chart(document.getElementById('tsa-outage-circle-chart'), {
-      type: 'bar',
-      data: {
-        labels: oa.byCircle.labels,
-        datasets: [
-          {
-            label: 'Shutdown',
-            data: oa.byCircle.shutdown.slice(),
-            backgroundColor: CHART_PRIMARY,
-            stack: 'outage',
-            borderRadius: 2,
-          },
-          {
-            label: 'Breakdown',
-            data: oa.byCircle.breakdown.slice(),
-            backgroundColor: CHART_DANGER,
-            stack: 'outage',
-            borderRadius: 2,
-          },
-          {
-            label: 'Tripping',
-            data: oa.byCircle.tripping.slice(),
-            backgroundColor: CHART_WARNING,
-            stack: 'outage',
-            borderRadius: 2,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom', labels: { color: d.color, font: { size: 11 }, usePointStyle: true } },
-          tooltip: d.tooltip,
-        },
-        scales: {
-          x: { stacked: true, ticks: d.ticks, grid: { display: false }, border: { display: false } },
-          y: {
-            stacked: true,
-            min: 0,
-            ticks: { ...d.ticks, callback(v) { return `${v}h`; } },
-            grid: d.grid,
-            border: { display: false },
-            title: { display: true, text: 'Outage hours', color: d.color, font: { size: 11 } },
-          },
-        },
-      },
-    });
+    state.charts.tsaOutageCircle = buildTsaOutageCircleChart();
 
-    state.charts.tsaOutageTafm = new Chart(document.getElementById('tsa-outage-tafm-chart'), {
-      type: 'line',
-      data: {
-        labels: oa.tafmTrend.labels,
-        datasets: [
-          {
-            label: 'TAFM',
-            data: oa.tafmTrend.values.slice(),
-            borderColor: CHART_SUCCESS,
-            backgroundColor: 'rgba(0, 168, 112, 0.12)',
-            fill: false,
-            tension: 0.25,
-            pointRadius: 4,
-            pointBackgroundColor: CHART_SUCCESS,
-            borderWidth: 2,
-          },
-          {
-            label: `HERC target ${oa.target}%`,
-            data: oa.tafmTrend.labels.map(() => oa.target),
-            borderColor: CHART_WARNING,
-            borderDash: [6, 4],
-            pointRadius: 0,
-            borderWidth: 2,
-            fill: false,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: d.tooltip,
-        },
-        scales: {
-          x: { ticks: d.ticks, grid: { display: false }, border: { display: false } },
-          y: {
-            min: 98,
-            max: 100,
-            ticks: { ...d.ticks, callback(v) { return `${v}%`; } },
-            grid: d.grid,
-            border: { display: false },
-            title: { display: true, text: 'TAFM (%)', color: d.color, font: { size: 11 } },
-          },
-        },
-      },
-    });
+    state.charts.tsaOutageTafm = buildTsaOutageTafmChart();
 
     state.charts.tsaOutageReasons = new Chart(document.getElementById('tsa-outage-reasons-chart'), {
       type: 'bar',
@@ -3140,10 +3781,30 @@
     }
 
     if (state.charts.tsaOutageTafm) {
+      const { low, high } = getTafmThresholds(oa);
+      const values = oa.tafmTrend.values.slice();
+      const minV = Math.min(...values);
+      const maxV = Math.max(...values);
+      const { peakIdx, lowIdx } = getTafmExtrema(values);
+      const ds = state.charts.tsaOutageTafm.data.datasets[0];
       state.charts.tsaOutageTafm.data.labels = oa.tafmTrend.labels;
-      state.charts.tsaOutageTafm.data.datasets[0].data = oa.tafmTrend.values.slice();
+      ds.data = values;
+      ds.pointBackgroundColor = (ctx) => tafmValueColor(values[ctx.dataIndex], low, high, minV, maxV);
+      ds.pointRadius = (ctx) => (ctx.dataIndex === peakIdx || ctx.dataIndex === lowIdx ? 0 : 3.5);
+      ds.segment = {
+        borderColor: (ctx) => {
+          const v0 = ctx.p0.parsed.y;
+          const v1 = ctx.p1.parsed.y;
+          if (v0 < low || v0 > high || v1 < low || v1 > high) return TAFM_ALERT;
+          return tafmValueColor((v0 + v1) / 2, low, high, minV, maxV);
+        },
+      };
       state.charts.tsaOutageTafm.data.datasets[1].data = oa.tafmTrend.labels.map(() => oa.target);
       state.charts.tsaOutageTafm.data.datasets[1].label = `HERC target ${oa.target}%`;
+      state.charts.tsaOutageTafm.options.plugins.tafmPremiumMarkers = {
+        lowThreshold: low,
+        highThreshold: high,
+      };
       state.charts.tsaOutageTafm.update('none');
     }
 
@@ -4915,6 +5576,14 @@
     const filterToolbar = document.querySelector('.filter-toolbar');
     if (filterToolbar) filterToolbar.hidden = viewId === 'settings';
 
+    if (viewId === 'tsa-outage-analytics') {
+      startTafmPulse();
+      startOaCirclePulse();
+    } else {
+      stopTafmPulse();
+      stopOaCirclePulse();
+    }
+
     // Keep TSA parent open when a TSA child view is selected
     if (String(viewId).startsWith('tsa-')) {
       const tsaGroup = document.getElementById('nav-tsa-group');
@@ -4985,6 +5654,15 @@
 
     document.getElementById('tsa-tripping-export-csv')?.addEventListener('click', () => {
       exportTsaTrippingRegisterCsv();
+    });
+
+    document.getElementById('oa-circle-export')?.addEventListener('click', () => {
+      exportOaCircleCsv();
+    });
+    document.getElementById('oa-circle-refresh')?.addEventListener('click', () => {
+      if (state.charts.tsaOutageCircle) {
+        state.charts.tsaOutageCircle.update();
+      }
     });
 
     document.getElementById('tsa-deemed-body')?.addEventListener('click', (e) => {

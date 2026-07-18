@@ -103,10 +103,6 @@
             <i data-lucide="timer-reset" class="nav-icon"></i>
             <span class="nav-label">Uptime</span>
           </button>
-          <button data-view="settings" class="nav-item" title="Settings &amp; Access Control">
-            <i data-lucide="settings" class="nav-icon"></i>
-            <span class="nav-label">Settings</span>
-          </button>
         </div>
 
         <button
@@ -153,6 +149,11 @@
             <span class="nav-label">Tripping Register</span>
           </button>
         </div>
+
+        <button data-view="settings" class="nav-item" title="Settings &amp; Access Control">
+          <i data-lucide="settings" class="nav-icon"></i>
+          <span class="nav-label">Settings</span>
+        </button>
       </nav>
 
       <div class="sidebar-footer">
@@ -1386,11 +1387,22 @@
         <!-- TSA — OUTAGE ANALYTICS -->
         <section id="view-tsa-outage-analytics" class="view view-stack">
           <div class="grid-2 page-section">
-            <div class="panel">
+            <div class="panel oa-circle-premium">
               <div class="panel-header">
-                <h3>Shutdown / Breakdown / Tripping by Circle</h3>
+                <div>
+                  <h3>Shutdown / Breakdown / Tripping by Circle</h3>
+                  <p class="card__meta">Operational outage duration by transmission circle</p>
+                </div>
+                <div class="chart-toolbar">
+                  <button type="button" class="btn btn-secondary btn-sm" id="oa-circle-refresh" title="Refresh view">
+                    <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                  </button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="oa-circle-export" title="Export summary">
+                    <i data-lucide="download" class="h-4 w-4"></i>
+                  </button>
+                </div>
               </div>
-              <div class="panel-body chart-container-lg">
+              <div class="panel-body chart-container-lg oa-circle-chart-wrap">
                 <canvas id="tsa-outage-circle-chart" aria-label="Outage by circle stacked chart"></canvas>
               </div>
             </div>
@@ -1398,7 +1410,7 @@
               <div class="panel-header">
                 <h3>TAFM Comparison — FY Trend</h3>
               </div>
-              <div class="panel-body chart-container-lg">
+              <div class="panel-body chart-container-lg tafm-premium-wrap">
                 <canvas id="tsa-outage-tafm-chart" aria-label="TAFM FY trend chart"></canvas>
               </div>
             </div>
