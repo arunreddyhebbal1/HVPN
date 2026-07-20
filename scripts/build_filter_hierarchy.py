@@ -41,6 +41,9 @@ def main() -> None:
         z, c, d, s, code, v = [None if x is None else str(x).strip() for x in r[:6]]
         if not all([z, c, d, s]):
             continue
+        # Skip catch-all "Other" hierarchy rows — not used in filters/widgets.
+        if any(x.lower() == "other" for x in (z, c, d)):
+            continue
         vv = voltage_value(v or "")
         if vv:
             volts.add(vv)

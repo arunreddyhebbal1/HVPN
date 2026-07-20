@@ -1227,26 +1227,6 @@
         }
       }
     },
-    "zone-other": {
-      "label": "Other",
-      "circles": {
-        "circle-other": {
-          "label": "Other",
-          "divisions": {
-            "div-other": {
-              "label": "Other",
-              "substations": {
-                "31105": {
-                  "name": "66kV Sugar Mill Yamunanagar",
-                  "code": "31105",
-                  "voltage": "66"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "zone-panchkula": {
       "label": "Panchkula",
       "circles": {

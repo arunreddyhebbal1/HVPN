@@ -488,81 +488,91 @@
             </div>
           </div>
 
-          <div class="grid-2 page-section so-top-grid">
-            <div class="panel">
-              <div class="panel-header">
-                <h3>Transmission Availability</h3>
-                <span class="badge badge-success" id="avail-status">Operational</span>
-              </div>
-              <div class="panel-body">
-                <div class="avail-chart-wrap"><canvas id="availability-sparkline"></canvas></div>
-              </div>
-            </div>
-            <div class="panel">
-              <div class="panel-header">
-                <h3>Power Quality</h3>
-              </div>
-              <div class="panel-body">
-                <div class="pq-grid pq-grid--compact so-pq-grid">
-                  <div class="pq-metric">
-                    <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-active-gauge"></canvas></div>
-                    <p class="pq-label">Active Power</p>
-                    <p class="pq-value" id="pq-active-value">142.5 MW</p>
-                  </div>
-                  <div class="pq-metric">
-                    <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-reactive-gauge"></canvas></div>
-                    <p class="pq-label">Reactive Power</p>
-                    <p class="pq-value" id="pq-reactive-value">68.9 MVAR</p>
-                  </div>
-                  <div class="pq-metric">
-                    <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-vband-gauge"></canvas></div>
-                    <p class="pq-label">Voltage Band Compliance</p>
-                    <p class="pq-value" id="pq-vband-value">98.2%</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="grid-2 page-section so-loss-grid">
+          <div class="page-section so-monthly-full">
             <div class="panel so-monthly-loss-panel">
-              <div class="panel-header"><h3>Monthly Loss Trend</h3></div>
-              <div class="panel-body so-monthly-loss-body">
+              <div class="panel-header">
+                <h3>Monthly Loss Trend</h3>
                 <div class="so-monthly-loss-legend" aria-hidden="true">
-                  <span><span class="so-monthly-loss-dot so-monthly-loss-dot--high"></span>Highest Loss</span>
-                  <span><span class="so-monthly-loss-dot so-monthly-loss-dot--low"></span>Lowest Loss</span>
+                  <span><span class="so-monthly-loss-dot so-monthly-loss-dot--high"></span>Highest</span>
+                  <span><span class="so-monthly-loss-dot so-monthly-loss-dot--low"></span>Lowest</span>
                   <span><span class="so-monthly-loss-dot so-monthly-loss-dot--normal"></span>Normal</span>
                 </div>
+              </div>
+              <div class="panel-body so-monthly-loss-body">
                 <div class="so-monthly-loss-chart-wrap">
                   <canvas id="tl-monthly-trend-chart" aria-label="Monthly loss trend chart"></canvas>
                 </div>
               </div>
             </div>
-            <div class="panel">
+          </div>
+
+          <div class="grid-2 page-section so-ops-geo-grid">
+            <div class="so-ops-stack" aria-label="Operational Analytics">
+              <div class="panel so-ops-panel">
+                <div class="panel-header">
+                  <h3>Transmission Availability</h3>
+                </div>
+                <div class="panel-body">
+                  <div class="avail-chart-wrap"><canvas id="availability-sparkline"></canvas></div>
+                </div>
+              </div>
+              <div class="panel so-ops-panel">
+                <div class="panel-header">
+                  <h3>Power Quality</h3>
+                </div>
+                <div class="panel-body">
+                  <div class="pq-grid pq-grid--compact so-pq-grid">
+                    <div class="pq-metric">
+                      <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-active-gauge"></canvas></div>
+                      <p class="pq-label">Active Power</p>
+                      <p class="pq-value" id="pq-active-value">142.5 MW</p>
+                    </div>
+                    <div class="pq-metric">
+                      <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-reactive-gauge"></canvas></div>
+                      <p class="pq-label">Reactive Power</p>
+                      <p class="pq-value" id="pq-reactive-value">68.9 MVAR</p>
+                    </div>
+                    <div class="pq-metric">
+                      <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-vband-gauge"></canvas></div>
+                      <p class="pq-label">Voltage Band Compliance</p>
+                      <p class="pq-value" id="pq-vband-value">98.2%</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel so-geo-loss-panel">
               <div class="panel-header"><h3>Zone &amp; Circle Loss</h3></div>
               <div class="panel-body so-geo-loss-body">
                 <div class="so-geo-loss-block">
-                  <h4 class="so-geo-loss-title">Zone-wise</h4>
-                  <div class="chart-container so-geo-chart"><canvas id="tl-zone-loss-chart"></canvas></div>
+                  <div class="so-geo-loss-title-row">
+                    <h4 class="so-geo-loss-title">Zone-wise</h4>
+                    <span class="so-geo-loss-avg" id="tl-zone-loss-avg">Average : —</span>
+                  </div>
+                  <div class="so-geo-loss-list" id="tl-zone-loss-list"></div>
                 </div>
                 <div class="so-geo-loss-block">
-                  <h4 class="so-geo-loss-title">Circle-wise</h4>
-                  <div class="chart-container so-geo-chart so-geo-chart--tall"><canvas id="tl-circle-loss-chart"></canvas></div>
+                  <div class="so-geo-loss-title-row">
+                    <h4 class="so-geo-loss-title">Circle-wise</h4>
+                    <span class="so-geo-loss-avg" id="tl-circle-loss-avg">Average : —</span>
+                  </div>
+                  <div class="so-geo-loss-list" id="tl-circle-loss-list"></div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="panel">
+          <div class="panel so-hotspots-panel">
             <div class="panel-header"><h3>Loss Hotspots</h3></div>
             <div class="panel-body p-0 overflow-x-auto">
-              <table class="data-table data-table--compact">
+              <table class="data-table data-table--compact so-hotspots-table">
                 <thead>
                   <tr>
                     <th>Zone</th>
                     <th>Circle</th>
                     <th>Loss %</th>
-                    <th>Priority</th>
+                    <th>Severity</th>
                   </tr>
                 </thead>
                 <tbody id="tl-hotspots-body"></tbody>

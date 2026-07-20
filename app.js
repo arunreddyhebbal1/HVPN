@@ -140,13 +140,19 @@
     return `<option value="${FILTER_ALL}"${isFilterAll(selected) ? ' selected' : ''}>All</option>`;
   }
 
+  function isOtherHierarchyLabel(value) {
+    return String(value || '').trim().toLowerCase() === 'other';
+  }
+
   function listHierarchyCircles() {
     const out = [];
     Object.entries(FILTER_HIERARCHY).forEach(([zoneKey, zone]) => {
+      if (isOtherHierarchyLabel(zone?.label) || isOtherHierarchyLabel(zoneKey)) return;
       Object.entries(zone.circles || {}).forEach(([circleKey, circle]) => {
         const label = String(circle?.label || '').trim();
         if (!label || isFilterAll(label) || label.toLowerCase() === 'all') return;
         if (isFilterAll(circleKey) || String(circleKey).toLowerCase() === 'all') return;
+        if (isOtherHierarchyLabel(label) || isOtherHierarchyLabel(circleKey)) return;
         out.push({ zoneKey, circleKey, label });
       });
     });
@@ -179,10 +185,12 @@
     by.labels.forEach((label, i) => {
       const name = String(label || '').trim();
       if (!name || isFilterAll(name) || name.toLowerCase() === 'all') return;
+      if (isOtherHierarchyLabel(name)) return;
 
       const circleKey = by.circleKeys?.[i];
       const zoneKey = by.zoneKeys?.[i];
       if (circleKey && (isFilterAll(circleKey) || String(circleKey).toLowerCase() === 'all')) return;
+      if (isOtherHierarchyLabel(circleKey) || isOtherHierarchyLabel(zoneKey)) return;
 
       if (!isFilterAll(state.filters.zone) && zoneKey && zoneKey !== state.filters.zone) return;
       if (!isFilterAll(state.filters.circle)) {
@@ -276,6 +284,10 @@
   const LOSS_MONTHLY_HIGH = '#ef4444';
   const LOSS_MONTHLY_LOW = '#22c55e';
   const LOSS_MONTHLY_NORMAL = '#5b5ce2';
+  const LOSS_MONTHLY_HIGH_DARK = '#991b1b';
+  const LOSS_MONTHLY_HIGH_LIGHT = '#ff9d9d';
+  const LOSS_MONTHLY_LOW_DARK = '#166534';
+  const LOSS_MONTHLY_LOW_LIGHT = '#9ef5b3';
 
   function lossMonthlyBarColor(ctx) {
     const value = Number(ctx.raw);
@@ -284,24 +296,87 @@
     if (!data.length) return LOSS_MONTHLY_NORMAL;
     const max = Math.max(...data);
     const min = Math.min(...data);
-    if (max !== min && value === max) return LOSS_MONTHLY_HIGH;
-    if (max !== min && value === min) return LOSS_MONTHLY_LOW;
+    if (max !== min && value === max) {
+      const { ctx: canvas, chartArea } = chart;
+      if (!chartArea) return LOSS_MONTHLY_HIGH;
+      const g = canvas.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+      g.addColorStop(0, LOSS_MONTHLY_HIGH_DARK);
+      g.addColorStop(0.5, LOSS_MONTHLY_HIGH);
+      g.addColorStop(1, LOSS_MONTHLY_HIGH_LIGHT);
+      return g;
+    }
+    if (max !== min && value === min) {
+      const { ctx: canvas, chartArea } = chart;
+      if (!chartArea) return LOSS_MONTHLY_LOW;
+      const g = canvas.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+      g.addColorStop(0, LOSS_MONTHLY_LOW_DARK);
+      g.addColorStop(0.5, LOSS_MONTHLY_LOW);
+      g.addColorStop(1, LOSS_MONTHLY_LOW_LIGHT);
+      return g;
+    }
     const { ctx: canvas, chartArea } = chart;
     if (!chartArea) return LOSS_MONTHLY_NORMAL;
     const gradient = canvas.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
     gradient.addColorStop(0, '#4338ca');
-    gradient.addColorStop(0.45, '#7c6df2');
-    gradient.addColorStop(0.75, '#4a90e2');
-    gradient.addColorStop(1, '#27c5c3');
+    gradient.addColorStop(0.35, '#6d5ef5');
+    gradient.addColorStop(0.70, '#4f8df8');
+    gradient.addColorStop(1, '#22d3c5');
     return gradient;
   }
+
+  const monthlyLossDataLabelsPlugin = {
+    id: 'monthlyLossDataLabels',
+    afterDatasetsDraw(chart) {
+      if (chart.canvas?.id !== 'tl-monthly-trend-chart') return;
+      const dataset = chart.data.datasets?.[0];
+      const values = (dataset?.data || []).map((v) => Number(v));
+      const meta = chart.getDatasetMeta(0);
+      if (!meta?.data?.length || !values.length) return;
+      const { ctx } = chart;
+
+      meta.data.forEach((bar, i) => {
+        const value = values[i];
+        if (!Number.isFinite(value)) return;
+        const prev = i > 0 ? values[i - 1] : null;
+        const diff = prev == null ? null : Number((value - prev).toFixed(1));
+
+        ctx.save();
+        ctx.textAlign = 'center';
+
+        // Top value label
+        ctx.fillStyle = isDark() ? '#F8FAFC' : '#222222';
+        ctx.textBaseline = 'bottom';
+        ctx.font = "700 13px 'Inter', sans-serif";
+        ctx.fillText(`${value.toFixed(1)}%`, bar.x, bar.y - 2);
+
+        // Delta label above value (except first point)
+        if (diff != null) {
+          let deltaText = '\u25AC 0';
+          let deltaColor = '#666666';
+          if (diff > 0) {
+            deltaText = `\u25B2 +${diff}`;
+            deltaColor = '#dc2626';
+          } else if (diff < 0) {
+            deltaText = `\u25BC ${Math.abs(diff)}`;
+            deltaColor = '#16a34a';
+          }
+          ctx.fillStyle = deltaColor;
+          ctx.font = "700 11px 'Inter', sans-serif";
+          ctx.fillText(deltaText, bar.x, bar.y - 24);
+        }
+        ctx.restore();
+      });
+    },
+  };
 
   function buildLossGeoData() {
     const zones = {};
     const circles = {};
-    Object.entries(FILTER_HIERARCHY).forEach(([, zone]) => {
+    Object.entries(FILTER_HIERARCHY).forEach(([zoneKey, zone]) => {
+      if (isOtherHierarchyLabel(zone?.label) || isOtherHierarchyLabel(zoneKey)) return;
       zones[zone.label] = Number(rand(0.9, 2.4).toFixed(2));
-      Object.values(zone.circles || {}).forEach((circle) => {
+      Object.entries(zone.circles || {}).forEach(([circleKey, circle]) => {
+        if (isOtherHierarchyLabel(circle?.label) || isOtherHierarchyLabel(circleKey)) return;
         circles[circle.label] = Number(rand(0.6, 2.8).toFixed(2));
       });
     });
@@ -310,15 +385,17 @@
 
   function buildLossHotspots(geo) {
     const rows = [];
-    Object.values(FILTER_HIERARCHY).forEach((zone) => {
-      Object.values(zone.circles || {}).forEach((circle) => {
+    Object.entries(FILTER_HIERARCHY).forEach(([zoneKey, zone]) => {
+      if (isOtherHierarchyLabel(zone?.label) || isOtherHierarchyLabel(zoneKey)) return;
+      Object.entries(zone.circles || {}).forEach(([circleKey, circle]) => {
+        if (isOtherHierarchyLabel(circle?.label) || isOtherHierarchyLabel(circleKey)) return;
         const loss = geo.circles[circle.label] ?? rand(0.6, 2.8);
         const value = Number(Number(loss).toFixed(2));
         rows.push({
           zone: zone.label,
           circle: circle.label,
           loss: value,
-          priority: value > 2.0 ? 'High' : value > 1.4 ? 'Medium' : 'Low',
+          priority: value > 2.4 ? 'Critical' : value > 2.0 ? 'High' : value > 1.4 ? 'Medium' : 'Normal',
         });
       });
     });
@@ -379,40 +456,147 @@
     const values = monthly.total.map(Number);
     chart.data.labels = monthly.labels.slice();
     chart.data.datasets[0].data = values;
+    const yScale = getMonthlyLossYScale(values);
+    if (chart.options.scales?.y) {
+      chart.options.scales.y.min = yScale.min;
+      chart.options.scales.y.max = yScale.max;
+      chart.options.scales.y.beginAtZero = false;
+      chart.options.scales.y.grid = { display: false };
+    }
     if (chart.canvas?.offsetParent !== null) chart.resize();
     chart.update('none');
   }
 
-  function syncLossGeoChart(chart, map) {
-    if (!chart || !map) return;
-    const labels = Object.keys(map);
-    const values = labels.map((k) => Number(map[k]) || 0);
-    chart.data.labels = labels;
-    chart.data.datasets[0].data = values;
-    chart.data.datasets[0].backgroundColor = lossBarHighlightColors(values);
-    chart.update('none');
+  const GEO_LOSS_FILL_CLASSES = [
+    'so-geo-loss-fill--c1',
+    'so-geo-loss-fill--c2',
+    'so-geo-loss-fill--c3',
+    'so-geo-loss-fill--c4',
+    'so-geo-loss-fill--c5',
+  ];
+
+  function buildGeoLossRows(map) {
+    return Object.entries(map || {})
+      .map(([name, loss]) => ({ name, loss: Number(loss) || 0 }))
+      .filter((row) => row.name && !isOtherHierarchyLabel(row.name))
+      .sort((a, b) => b.loss - a.loss);
   }
 
-  function buildMonthlyLossChartOptions(d) {
+  function renderGeoLossList(listId, avgId, map, { showNotes = false } = {}) {
+    const listEl = document.getElementById(listId);
+    const avgEl = document.getElementById(avgId);
+    if (!listEl) return;
+
+    const rows = buildGeoLossRows(map);
+    if (!rows.length) {
+      listEl.innerHTML = '<p class="so-geo-loss-empty">No loss data</p>';
+      if (avgEl) avgEl.textContent = 'Average : —';
+      return;
+    }
+
+    const max = Math.max(...rows.map((r) => r.loss), 0.01);
+    const avg = rows.reduce((sum, r) => sum + r.loss, 0) / rows.length;
+    if (avgEl) avgEl.textContent = `Average : ${avg.toFixed(2)}%`;
+
+    const maxIdx = 0;
+    const minIdx = rows.length - 1;
+    const distinct = rows.length > 1 && rows[maxIdx].loss !== rows[minIdx].loss;
+
+    listEl.innerHTML = rows.map((row, i) => {
+      const isHigh = distinct && i === maxIdx;
+      const isLow = distinct && i === minIdx;
+      const width = Math.max(8, Math.round((row.loss / max) * 100));
+      let fillClass = GEO_LOSS_FILL_CLASSES[(i - (isHigh ? 1 : 0)) % GEO_LOSS_FILL_CLASSES.length];
+      if (isHigh) fillClass = 'so-geo-loss-fill--high';
+      if (isLow) fillClass = 'so-geo-loss-fill--low';
+
+      let badge = '';
+      if (isHigh) badge = '<span class="so-geo-loss-badge so-geo-loss-badge--high">Highest</span>';
+      if (isLow) badge = '<span class="so-geo-loss-badge so-geo-loss-badge--low">Lowest</span>';
+
+      let note = '';
+      if (showNotes && isHigh) {
+        note = '<div class="so-geo-loss-note so-geo-loss-note--up">▲ Above Average</div>';
+      } else if (showNotes && isLow) {
+        const below = Math.max(avg - row.loss, 0);
+        note = `<div class="so-geo-loss-note so-geo-loss-note--down">▼ ${below.toFixed(2)}% Below Avg</div>`;
+      }
+
+      return `
+        <div class="so-geo-loss-item">
+          <div class="so-geo-loss-item-top">
+            <div class="so-geo-loss-rank">
+              <span class="so-geo-loss-name">${row.name}</span>
+              ${badge}
+            </div>
+            <div class="so-geo-loss-value">${row.loss.toFixed(1)}%</div>
+          </div>
+          <div class="so-geo-loss-track">
+            <div class="so-geo-loss-fill ${fillClass}" style="width:${width}%"></div>
+          </div>
+          ${note}
+        </div>
+      `;
+    }).join('');
+
+    // Restart grow animation on next frame
+    requestAnimationFrame(() => {
+      listEl.querySelectorAll('.so-geo-loss-fill').forEach((el) => {
+        const target = el.style.width;
+        el.style.width = '0';
+        requestAnimationFrame(() => { el.style.width = target; });
+      });
+    });
+  }
+
+  function renderZoneCircleLoss(losses) {
+    if (!losses) return;
+    renderGeoLossList('tl-zone-loss-list', 'tl-zone-loss-avg', losses.zones, { showNotes: true });
+    renderGeoLossList('tl-circle-loss-list', 'tl-circle-loss-avg', losses.circles, { showNotes: false });
+  }
+
+  function getMonthlyLossYScale(values) {
+    const nums = (values || []).map(Number).filter((v) => Number.isFinite(v));
+    if (!nums.length) return { min: 0, max: 6 };
+    const minVal = Math.min(...nums);
+    const maxVal = Math.max(...nums);
+    const span = Math.max(maxVal - minVal, 0.8);
+    const min = Math.max(0, Number((minVal - span * 0.28).toFixed(1)));
+    const max = Number((maxVal + span * 0.4).toFixed(1));
+    return { min, max };
+  }
+
+  function buildMonthlyLossChartOptions(d, values = []) {
     const tickColor = isDark() ? d.ticks.color : '#4b5563';
-    const gridColor = isDark() ? d.grid.color : '#e5e7eb';
+    const yScale = getMonthlyLossYScale(values);
     return {
       responsive: true,
       maintainAspectRatio: false,
-      layout: { padding: { top: 4, left: 4, right: 8, bottom: 0 } },
+      layout: { padding: { top: 36, left: 2, right: 6, bottom: 2 } },
       datasets: {
         bar: {
-          categoryPercentage: 0.88,
-          barPercentage: 0.92,
+          categoryPercentage: 0.7,
+          barPercentage: 0.78,
         },
       },
       plugins: {
         legend: { display: false },
         tooltip: {
           ...d.tooltip,
+          backgroundColor: '#333',
           callbacks: {
             label(ctx) {
-              return `Loss : ${ctx.raw}%`;
+              const value = Number(ctx.raw);
+              const index = ctx.dataIndex;
+              const data = (ctx.dataset.data || []).map((v) => Number(v));
+              let text = `Loss : ${value}%`;
+              if (index > 0 && Number.isFinite(data[index - 1])) {
+                const diff = Number((value - data[index - 1]).toFixed(1));
+                if (diff > 0) text += ` | Increased by ${diff}%`;
+                else if (diff < 0) text += ` | Reduced by ${Math.abs(diff)}%`;
+                else text += ' | No Change';
+              }
+              return text;
             },
           },
         },
@@ -426,9 +610,11 @@
         },
         y: {
           stacked: false,
-          beginAtZero: true,
+          beginAtZero: false,
+          min: yScale.min,
+          max: yScale.max,
           ticks: { color: d.ticks.color, callback(v) { return `${v}%`; } },
-          grid: { color: gridColor },
+          grid: { display: false },
           border: { display: false },
         },
       },
@@ -579,6 +765,7 @@
     chart.data.datasets[1].data = hist.map((h) => h.forced);
     const maxVal = Math.max(...hist.map((h) => h.planned + h.forced), 0.12);
     chart.options.scales.y.suggestedMax = Math.ceil(maxVal * 20) / 20 + 0.05;
+    if (chart.options.scales.y.grid) chart.options.scales.y.grid.display = false;
     chart.update(animate ? 'default' : 'none');
   }
 
@@ -2632,24 +2819,28 @@
             label: 'Planned Outage',
             data: availHist.map((h) => h.planned),
             backgroundColor: '#f59e0b',
-            borderRadius: 2,
-            barPercentage: 0.85,
-            categoryPercentage: 0.9,
+            borderRadius: 6,
+            borderSkipped: false,
+            maxBarThickness: 28,
+            barPercentage: 0.78,
+            categoryPercentage: 0.7,
           },
           {
             label: 'Forced Outage',
             data: availHist.map((h) => h.forced),
             backgroundColor: '#ef4444',
-            borderRadius: 2,
-            barPercentage: 0.85,
-            categoryPercentage: 0.9,
+            borderRadius: 6,
+            borderSkipped: false,
+            maxBarThickness: 28,
+            barPercentage: 0.78,
+            categoryPercentage: 0.7,
           },
         ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        layout: { padding: { top: 4, bottom: 4, left: 0, right: 4 } },
+        layout: { padding: { top: 8, bottom: 0, left: 2, right: 6 } },
         plugins: {
           legend: {
             display: true,
@@ -2657,22 +2848,26 @@
             align: 'center',
             labels: {
               color: d.color,
-              font: { size: 10 },
-              boxWidth: 10,
-              padding: 14,
+              font: { size: 11, weight: '600' },
+              boxWidth: 12,
+              padding: 12,
               usePointStyle: true,
               pointStyle: 'rectRounded',
             },
           },
-          tooltip: d.tooltip,
+          tooltip: {
+            ...d.tooltip,
+            backgroundColor: '#333',
+          },
         },
         scales: {
           x: {
             stacked: true,
             grid: { display: false },
+            border: { display: false },
             ticks: {
-              color: d.color,
-              font: { size: 9 },
+              color: isDark() ? d.color : '#4b5563',
+              font: { size: 10, weight: '600' },
               maxTicksLimit: 8,
               maxRotation: 0,
               autoSkip: true,
@@ -2682,10 +2877,11 @@
             stacked: true,
             beginAtZero: true,
             suggestedMax: 0.35,
-            grid: { ...d.grid, drawBorder: false },
+            grid: { display: false },
+            border: { display: false },
             ticks: {
               color: d.color,
-              font: { size: 9 },
+              font: { size: 10 },
               maxTicksLimit: 5,
               callback: (v) => `${v}%`,
             },
@@ -2693,7 +2889,7 @@
               display: true,
               text: 'Outage %',
               color: d.color,
-              font: { size: 10, weight: '600' },
+              font: { size: 11, weight: '600' },
             },
           },
         },
@@ -2897,6 +3093,7 @@
 
     state.charts.tlMonthlyTrend = new Chart(document.getElementById('tl-monthly-trend-chart'), {
       type: 'bar',
+      plugins: [monthlyLossDataLabelsPlugin],
       data: {
         labels: state.data.losses.monthly.labels,
         datasets: [{
@@ -2905,45 +3102,18 @@
           backgroundColor: lossMonthlyBarColor,
           borderRadius: 8,
           borderSkipped: false,
+          maxBarThickness: 42,
+          categoryPercentage: 0.7,
+          barPercentage: 0.78,
         }],
       },
       options: {
-        ...buildMonthlyLossChartOptions(d),
+        ...buildMonthlyLossChartOptions(d, state.data.losses.monthly.total),
         animation: { duration: 500, easing: 'easeOutQuart' },
       },
     });
 
-    state.charts.tlZoneLoss = new Chart(document.getElementById('tl-zone-loss-chart'), {
-      type: 'bar',
-      plugins: [lossBarValuePlugin],
-      data: {
-        labels: Object.keys(state.data.losses.zones),
-        datasets: [{
-          label: 'Loss %',
-          data: Object.values(state.data.losses.zones),
-          backgroundColor: lossBarHighlightColors(Object.values(state.data.losses.zones)),
-          borderRadius: 4,
-          borderSkipped: false,
-        }],
-      },
-      options: buildGeoLossChartOptions(d, true),
-    });
-
-    state.charts.tlCircleLoss = new Chart(document.getElementById('tl-circle-loss-chart'), {
-      type: 'bar',
-      plugins: [lossBarValuePlugin],
-      data: {
-        labels: Object.keys(state.data.losses.circles),
-        datasets: [{
-          label: 'Loss %',
-          data: Object.values(state.data.losses.circles),
-          backgroundColor: lossBarHighlightColors(Object.values(state.data.losses.circles)),
-          borderRadius: 4,
-          borderSkipped: false,
-        }],
-      },
-      options: buildGeoLossChartOptions(d, true),
-    });
+    renderZoneCircleLoss(state.data.losses);
 
     const soPq = getSoPowerQualitySnapshot(state.data);
     state.charts.pqActive = makeGauge(document.getElementById('pq-active-gauge'), soPq.activeMw, soPq.activeMax, CHART_PRIMARY);
@@ -4536,18 +4706,23 @@
         state.charts.tlMonthlyTrend.update('none');
       });
     }
-    syncLossGeoChart(state.charts.tlZoneLoss, losses.zones);
-    syncLossGeoChart(state.charts.tlCircleLoss, losses.circles);
+    renderZoneCircleLoss(losses);
 
     const hotspotRows = (losses.hotspots || []).slice().sort((a, b) => b.loss - a.loss);
     const tbody = document.getElementById('tl-hotspots-body');
     if (tbody) {
+      const severityClass = {
+        Critical: 'badge-danger',
+        High: 'badge-warning',
+        Medium: 'badge-warning',
+        Normal: 'badge-success',
+      };
       tbody.innerHTML = hotspotRows.map((r) => `
-        <tr>
+        <tr class="so-hotspot-row so-hotspot-row--${String(r.priority || 'Normal').toLowerCase()}">
           <td>${r.zone}</td>
           <td>${r.circle}</td>
           <td class="font-mono">${r.loss.toFixed(2)}%</td>
-          <td><span class="badge ${r.priority === 'High' ? 'badge-danger' : r.priority === 'Medium' ? 'badge-warning' : 'badge-success'}">${r.priority}</span></td>
+          <td><span class="badge ${severityClass[r.priority] || 'badge-success'}">${r.priority}</span></td>
         </tr>
       `).join('');
     }
@@ -5170,14 +5345,6 @@
       syncLossMonthlyChart(state.charts.tlMonthlyTrend, m);
     }
 
-    if (state.charts.tlZoneLoss && data.losses?.zones) {
-      syncLossGeoChart(state.charts.tlZoneLoss, data.losses.zones);
-    }
-
-    if (state.charts.tlCircleLoss && data.losses?.circles) {
-      syncLossGeoChart(state.charts.tlCircleLoss, data.losses.circles);
-    }
-
     // PQ gauges
     const pq = data.powerQuality;
     const soPq = getSoPowerQualitySnapshot(data);
@@ -5321,6 +5488,7 @@
     const sel = document.getElementById('filter-zone');
     if (!sel) return;
     const options = Object.entries(FILTER_HIERARCHY)
+      .filter(([k, v]) => !isOtherHierarchyLabel(v.label) && !isOtherHierarchyLabel(k))
       .sort((a, b) => a[1].label.localeCompare(b[1].label))
       .map(([k, v]) =>
         `<option value="${k}"${k === state.filters.zone ? ' selected' : ''}>${v.label}</option>`
@@ -5336,6 +5504,7 @@
     resetFilterCascadeFromZone();
     const circles = getCirclesForFilter();
     const options = Object.entries(circles)
+      .filter(([k, v]) => !isOtherHierarchyLabel(v.label) && !isOtherHierarchyLabel(k))
       .sort((a, b) => a[1].label.localeCompare(b[1].label))
       .map(([k, v]) =>
         `<option value="${k}"${k === state.filters.circle ? ' selected' : ''}>${v.label}</option>`
@@ -5351,6 +5520,7 @@
     resetFilterCascadeFromCircle();
     const divisions = getDivisionsForFilter();
     const options = Object.entries(divisions)
+      .filter(([k, v]) => !isOtherHierarchyLabel(v.label) && !isOtherHierarchyLabel(k))
       .sort((a, b) => a[1].label.localeCompare(b[1].label))
       .map(([k, v]) =>
         `<option value="${k}"${k === state.filters.division ? ' selected' : ''}>${v.label}</option>`
