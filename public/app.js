@@ -23,6 +23,8 @@
     },
     charts: {},
     chartTimeFilter: 'hour',
+    loadForecastInterval: 'hourly',
+    zonePeakInterval: 'hourly',
     chartFocus: null,
     data: {},
     anomalyLog: [],
@@ -818,26 +820,16 @@
     }
 
     if (state.charts.loadForecast) {
-      const fc = data.loadForecast;
-      state.charts.loadForecast.data.labels = loadSeries.labels;
-      state.charts.loadForecast.data.datasets[0].data = resampleSeries(fc.actual, filter);
-      state.charts.loadForecast.data.datasets[1].data = resampleSeries(fc.predicted, filter);
-      state.charts.loadForecast.data.datasets[2].data = resampleSeries(
-        fc.predicted.map((v, i) => v + fc.margin[i]),
-        filter
-      );
-      state.charts.loadForecast.data.datasets[3].data = resampleSeries(
-        fc.predicted.map((v, i) => v - fc.margin[i]),
-        filter
-      );
-      applyTimeFilterToChartScales(state.charts.loadForecast, filter, animate);
+      syncLoadForecastChart(animate);
     }
 
     if (state.charts.pqTrend) {
       const trend = data.powerQualityTrend;
       state.charts.pqTrend.data.labels = loadSeries.labels;
-      state.charts.pqTrend.data.datasets[0].data = resampleSeries(trend.thd, filter);
-      state.charts.pqTrend.data.datasets[1].data = resampleSeries(trend.flicker, filter);
+      state.charts.pqTrend.data.datasets[0].data = resampleSeries(trend.voltageDeviation, filter);
+      state.charts.pqTrend.data.datasets[1].data = resampleSeries(trend.activePower, filter);
+      state.charts.pqTrend.data.datasets[2].data = resampleSeries(trend.reactivePower, filter);
+      state.charts.pqTrend.data.datasets[3].data = resampleSeries(trend.frequency, filter);
       applyTimeFilterToChartScales(state.charts.pqTrend, filter, animate);
     }
 
@@ -1163,25 +1155,22 @@
         mw: labels24.map((_, i) => 80 + Math.sin(i / 3) * 30 + rand(-5, 5)),
         mva: labels24.map((_, i) => 90 + Math.sin(i / 3) * 32 + rand(-5, 5)),
       },
-      loadForecast: {
-        labels: labels12,
-        actual: labels12.map((_, i) => 120 + Math.sin(i / 2) * 20 + rand(-3, 3)),
-        predicted: labels12.map((_, i) => 118 + Math.sin(i / 2) * 20),
-        margin: labels12.map(() => rand(2, 5)),
-      },
+      loadForecast: buildLoadForecastSeries('hourly'),
       powerQuality: {
-        thd: 2.8,
         voltage: 98.2,
         voltageBandCompliance: 98.2,
-        flicker: 0.42,
-        transients: 3,
+        reactiveMvar: computeReactiveMvar(142.5, 158.3),
+        voltageSags: 5,
+        voltageSwells: 2,
       },
       powerQualityTrend: {
-        labels: ['T-11', 'T-10', 'T-9', 'T-8', 'T-7', 'T-6', 'T-5', 'T-4', 'T-3', 'T-2', 'T-1', 'Now'],
-        thd: Array.from({ length: 12 }, () => rand(2.2, 3.4)),
-        flicker: Array.from({ length: 12 }, () => rand(0.28, 0.62)),
+        labels: labels24,
+        voltageDeviation: labels24.map((_, i) => clamp(1.2 + Math.sin(i / 4) * 0.8 + rand(-0.3, 0.3), 0.2, 4.5)),
+        activePower: labels24.map((_, i) => clamp(120 + Math.sin(i / 3) * 25 + rand(-4, 4), 80, 180)),
+        reactivePower: labels24.map((_, i) => clamp(55 + Math.sin(i / 3.5) * 15 + rand(-3, 3), 30, 95)),
+        frequency: labels24.map((_, i) => clamp(50 + Math.sin(i / 6) * 0.08 + rand(-0.04, 0.04), 49.7, 50.3)),
       },
-      pqEvents: { sags: 5, swells: 2, interruptions: 1, harmonics: 4 },
+      pqEvents: { sags: 5, swells: 2 },
       losses: (() => {
         const geo = buildLossGeoData();
         return {
@@ -1758,9 +1747,16 @@
       state.data.voltage = unispur.summary.voltage || state.data.voltage;
       state.data.gridFrequency = unispur.summary.frequency || state.data.gridFrequency;
       state.data.powerQuality.voltage = clamp(((unispur.summary.voltage || 220) / 220) * 100, 92, 101);
-      state.data.powerQuality.transients = clamp(Math.round((1 - (unispur.summary.powerFactor || 0.95)) * 100), 1, 12);
-      state.data.powerQuality.flicker = clamp(0.25 + state.data.powerQuality.transients / 25, 0.2, 1.2);
-      state.data.powerQuality.thd = clamp(2 + state.data.powerQuality.transients / 3.5, 1.5, 6.5);
+      state.data.powerQuality.voltageBandCompliance = state.data.powerQuality.voltage;
+      state.data.powerQuality.reactiveMvar = computeReactiveMvar(
+        state.data.feeders.all.mw,
+        state.data.feeders.all.mva
+      );
+      const pfStress = clamp(Math.round((1 - (unispur.summary.powerFactor || 0.95)) * 100), 1, 12);
+      state.data.powerQuality.voltageSags = clamp(Math.round(3 + pfStress / 3), 0, 12);
+      state.data.powerQuality.voltageSwells = clamp(Math.round(1 + pfStress / 5), 0, 10);
+      state.data.pqEvents.sags = state.data.powerQuality.voltageSags;
+      state.data.pqEvents.swells = state.data.powerQuality.voltageSwells;
       state.data.weather.lightning = String(unispur.summary.weather || 'CLEAR').toUpperCase().includes('RAIN') ? 'Medium' : 'Low';
     }
 
@@ -1858,18 +1854,35 @@
     }
 
     // Forecast
-    state.data.loadForecast.actual = state.data.loadForecast.actual.map((v) => clamp(v + rand(-2, 2), 80, 180));
-    state.data.loadForecast.predicted = state.data.loadForecast.actual.map((v, i) =>
-      v + rand(-state.data.loadForecast.margin[i], state.data.loadForecast.margin[i])
-    );
+    if (state.data.loadForecast?.actual?.length) {
+      state.data.loadForecast.actual = state.data.loadForecast.actual.map((v) => clamp(v + rand(-2, 2), 60, 240));
+      state.data.loadForecast.predicted = state.data.loadForecast.actual.map((v, i) =>
+        v + rand(-(state.data.loadForecast.margin[i] || 3), state.data.loadForecast.margin[i] || 3)
+      );
+      if (state.charts.loadForecast) {
+        const fc = state.data.loadForecast;
+        state.charts.loadForecast.data.datasets[0].data = fc.actual.slice();
+        state.charts.loadForecast.data.datasets[1].data = fc.predicted.slice();
+        state.charts.loadForecast.data.datasets[2].data = fc.predicted.map((v, i) => v + fc.margin[i]);
+        state.charts.loadForecast.data.datasets[3].data = fc.predicted.map((v, i) => v - fc.margin[i]);
+        state.charts.loadForecast.update('none');
+      }
+    }
 
     // Power quality
     const pq = state.data.powerQuality;
-    pq.thd = clamp(pq.thd + rand(-0.15, 0.15), 1.5, 6);
     pq.voltage = clamp(pq.voltage + rand(-0.3, 0.3), 95, 100);
     pq.voltageBandCompliance = clamp((pq.voltageBandCompliance ?? pq.voltage) + rand(-0.25, 0.25), 94, 100);
-    pq.flicker = clamp(pq.flicker + rand(-0.05, 0.05), 0.2, 1.2);
-    pq.transients = clamp(Math.round(pq.transients + rand(-1, 1)), 0, 12);
+    pq.reactiveMvar = clamp(
+      computeReactiveMvar(state.data.feeders.all.mw, state.data.feeders.all.mva) + rand(-1.5, 1.5),
+      20,
+      120
+    );
+    pq.voltageSags = clamp(Math.round((pq.voltageSags ?? state.data.pqEvents.sags) + rand(-1, 1)), 0, 12);
+    pq.voltageSwells = clamp(Math.round((pq.voltageSwells ?? state.data.pqEvents.swells) + rand(-1, 1)), 0, 10);
+    state.data.pqEvents.sags = pq.voltageSags;
+    state.data.pqEvents.swells = pq.voltageSwells;
+    state.data.gridFrequency = clamp(state.data.gridFrequency + rand(-0.03, 0.03), 49.7, 50.3);
 
     // Transmission losses drift
     state.data.losses.technical = clamp(state.data.losses.technical + rand(-0.06, 0.06), 2.4, 4.4);
@@ -2944,102 +2957,81 @@
     });
 
     // Load forecast
-    const fc = state.data.loadForecast;
-    state.charts.loadForecast = new Chart(document.getElementById('load-forecast-chart'), {
-      type: 'line',
-      data: {
-        labels: fc.labels,
-        datasets: [
-          {
-            label: 'Actual Load',
-            data: fc.actual,
-            borderColor: '#06b6d4',
-            backgroundColor: 'rgba(6, 182, 212, 0.1)',
-            fill: false,
-            tension: 0.35,
-            pointRadius: 3,
-            borderWidth: 2,
-          },
-          {
-            label: 'Predicted Load',
-            data: fc.predicted,
-            borderColor: '#8b5cf6',
-            backgroundColor: 'transparent',
-            tension: 0.35,
-            pointRadius: 3,
-            borderWidth: 2,
-            borderDash: [6, 3],
-          },
-          {
-            label: 'Upper Bound',
-            data: fc.predicted.map((v, i) => v + fc.margin[i]),
-            borderColor: 'transparent',
-            backgroundColor: 'rgba(245, 158, 11, 0.15)',
-            fill: '+1',
-            pointRadius: 0,
-            borderWidth: 0,
-          },
-          {
-            label: 'Lower Bound',
-            data: fc.predicted.map((v, i) => v - fc.margin[i]),
-            borderColor: 'transparent',
-            backgroundColor: 'transparent',
-            fill: false,
-            pointRadius: 0,
-            borderWidth: 0,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: {
-            labels: {
-              color: d.color,
-              filter: (item) => !item.text.includes('Bound'),
+    const fc = state.data.loadForecast || buildLoadForecastSeries(state.loadForecastInterval);
+    state.data.loadForecast = fc;
+    const forecastCanvas = document.getElementById('load-forecast-chart');
+    if (forecastCanvas) {
+      state.charts.loadForecast = new Chart(forecastCanvas, {
+        type: 'line',
+        data: {
+          labels: fc.labels,
+          datasets: [
+            {
+              label: 'Actual Load',
+              data: fc.actual,
+              borderColor: '#06b6d4',
+              backgroundColor: 'rgba(6, 182, 212, 0.1)',
+              fill: false,
+              tension: 0.35,
+              pointRadius: 3,
+              borderWidth: 2,
             },
+            {
+              label: 'Predicted Load',
+              data: fc.predicted,
+              borderColor: '#8b5cf6',
+              backgroundColor: 'transparent',
+              tension: 0.35,
+              pointRadius: 3,
+              borderWidth: 2,
+              borderDash: [6, 3],
+            },
+            {
+              label: 'Upper Bound',
+              data: fc.predicted.map((v, i) => v + fc.margin[i]),
+              borderColor: 'transparent',
+              backgroundColor: 'rgba(245, 158, 11, 0.15)',
+              fill: '+1',
+              pointRadius: 0,
+              borderWidth: 0,
+            },
+            {
+              label: 'Lower Bound',
+              data: fc.predicted.map((v, i) => v - fc.margin[i]),
+              borderColor: 'transparent',
+              backgroundColor: 'transparent',
+              fill: false,
+              pointRadius: 0,
+              borderWidth: 0,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              labels: {
+                color: d.color,
+                filter: (item) => !item.text.includes('Bound'),
+              },
+            },
+            tooltip: d.tooltip,
           },
-          tooltip: d.tooltip,
+          scales: {
+            x: {
+              ticks: d.ticks,
+              grid: d.grid,
+              title: { display: true, text: fc.xTitle || 'Time', color: d.color },
+            },
+            y: { ticks: d.ticks, grid: d.grid, title: { display: true, text: 'MW', color: d.color } },
+          },
         },
-        scales: {
-          x: { ticks: d.ticks, grid: d.grid, title: { display: true, text: 'Forecast Horizon', color: d.color } },
-          y: { ticks: d.ticks, grid: d.grid, title: { display: true, text: 'MW', color: d.color } },
-        },
-      },
-    });
+      });
+    }
 
-    // Feeder load comparison
-    const feederLabels = ['F1', 'F2', 'F3', 'F4'];
-    const feederKeys = ['f1', 'f2', 'f3', 'f4'];
-    state.charts.loadFeeder = new Chart(document.getElementById('load-feeder-chart'), {
-      type: 'bar',
-      data: {
-        labels: feederLabels,
-        datasets: [{
-          label: 'Current Load (MW)',
-          data: feederKeys.map((k) => state.data.feeders[k].mw),
-          backgroundColor: [CHART_PRIMARY, CHART_TEAL, CHART_SUCCESS, CHART_WARNING],
-          borderRadius: 4,
-          borderSkipped: false,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: d.tooltip },
-        scales: {
-          x: { ticks: d.ticks, grid: { display: false } },
-          y: {
-            title: { display: true, text: 'MW', color: d.color },
-            ticks: d.ticks,
-            grid: d.grid,
-            border: { display: false },
-          },
-        },
-      },
-    });
+    // Feeder load comparison removed (feeder-level measurements unavailable — pending HVPN confirmation)
 
     state.charts.loadTrendMW = new Chart(document.getElementById('la-trend-chart'), {
       type: 'line',
@@ -3131,10 +3123,17 @@
     );
 
     // PQ gauges (Power Quality tab)
-    state.charts.pqThdTab = makeGauge(document.getElementById('pq-tab-thd-gauge'), 2.8, 8, '#06b6d4');
+    const pqSnap = state.data.powerQuality;
+    const pqReactiveMax = Math.max(100, (pqSnap.reactiveMvar || 70) * 1.35);
+    state.charts.pqReactiveTab = makeGauge(
+      document.getElementById('pq-tab-reactive-gauge'),
+      pqSnap.reactiveMvar || 68.9,
+      pqReactiveMax,
+      CHART_TEAL
+    );
     state.charts.pqVoltageTab = makeGauge(document.getElementById('pq-tab-voltage-gauge'), 98.2, 100, '#22c55e');
-    state.charts.pqFlickerTab = makeGauge(document.getElementById('pq-tab-flicker-gauge'), 0.42, 1.5, '#f59e0b');
-    state.charts.pqTransientTab = makeGauge(document.getElementById('pq-tab-transient-gauge'), 3, 12, '#ef4444');
+    state.charts.pqSagTab = makeGauge(document.getElementById('pq-tab-sag-gauge'), pqSnap.voltageSags || 5, 12, '#3B82F6');
+    state.charts.pqSwellTab = makeGauge(document.getElementById('pq-tab-swell-gauge'), pqSnap.voltageSwells || 2, 10, '#F59E0B');
 
     state.charts.pqTrend = new Chart(document.getElementById('pq-trend-chart'), {
       type: 'line',
@@ -3142,34 +3141,96 @@
         labels: state.data.powerQualityTrend.labels,
         datasets: [
           {
-            label: 'THD %',
-            data: state.data.powerQualityTrend.thd,
-            borderColor: '#38BDF8',
-            backgroundColor: 'rgba(56,189,248,0.10)',
-            fill: true,
+            label: 'Voltage Deviation (%)',
+            data: state.data.powerQualityTrend.voltageDeviation,
+            borderColor: '#6366F1',
+            backgroundColor: 'rgba(99,102,241,0.08)',
+            fill: false,
             tension: 0.35,
             borderWidth: 2,
             pointRadius: 2,
+            yAxisID: 'y',
           },
           {
-            label: 'Flicker',
-            data: state.data.powerQualityTrend.flicker,
-            borderColor: '#F59E0B',
-            backgroundColor: 'rgba(245,158,11,0.08)',
-            fill: true,
+            label: 'Active Power (MW)',
+            data: state.data.powerQualityTrend.activePower,
+            borderColor: CHART_PRIMARY,
+            backgroundColor: 'rgba(0,102,204,0.08)',
+            fill: false,
             tension: 0.35,
             borderWidth: 2,
             pointRadius: 2,
+            yAxisID: 'y1',
+          },
+          {
+            label: 'Reactive Power (MVAR)',
+            data: state.data.powerQualityTrend.reactivePower,
+            borderColor: CHART_TEAL,
+            backgroundColor: 'rgba(20,184,166,0.08)',
+            fill: false,
+            tension: 0.35,
+            borderWidth: 2,
+            pointRadius: 2,
+            yAxisID: 'y1',
+          },
+          {
+            label: 'Frequency (Hz)',
+            data: state.data.powerQualityTrend.frequency,
+            borderColor: '#F59E0B',
+            backgroundColor: 'rgba(245,158,11,0.08)',
+            fill: false,
+            tension: 0.35,
+            borderWidth: 2,
+            pointRadius: 2,
+            yAxisID: 'y2',
           },
         ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { labels: { color: d.color } }, tooltip: d.tooltip },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: d.color, boxWidth: 12, padding: 12, font: { size: 11 } },
+          },
+          tooltip: d.tooltip,
+        },
         scales: {
-          x: { ticks: d.ticks, grid: d.grid },
-          y: { ticks: d.ticks, grid: d.grid },
+          x: {
+            ticks: { ...d.ticks, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
+            grid: { display: false },
+            border: { display: false },
+            title: { display: true, text: 'Time', color: d.color, font: { size: 11 } },
+          },
+          y: {
+            type: 'linear',
+            position: 'left',
+            ticks: { ...d.ticks, callback(v) { return `${v}%`; } },
+            grid: { color: d.grid?.color || 'rgba(148,163,184,0.15)' },
+            border: { display: false },
+            title: { display: true, text: 'Deviation %', color: d.color, font: { size: 10 } },
+          },
+          y1: {
+            type: 'linear',
+            position: 'right',
+            ticks: d.ticks,
+            grid: { drawOnChartArea: false },
+            border: { display: false },
+            title: { display: true, text: 'MW / MVAR', color: d.color, font: { size: 10 } },
+          },
+          y2: {
+            type: 'linear',
+            position: 'right',
+            offset: true,
+            min: 49.6,
+            max: 50.4,
+            ticks: { ...d.ticks, callback(v) { return `${Number(v).toFixed(1)}`; } },
+            grid: { drawOnChartArea: false },
+            border: { display: false },
+            title: { display: true, text: 'Hz', color: d.color, font: { size: 10 } },
+          },
         },
       },
     });
@@ -3177,18 +3238,19 @@
     state.charts.pqEvents = new Chart(document.getElementById('pq-events-chart'), {
       type: 'bar',
       data: {
-        labels: ['Sags', 'Swells', 'Interruptions', 'Harmonics'],
+        labels: ['Voltage Sags', 'Voltage Swells'],
         datasets: [{
           label: 'Count',
           data: [
             state.data.pqEvents.sags,
             state.data.pqEvents.swells,
-            state.data.pqEvents.interruptions,
-            state.data.pqEvents.harmonics,
           ],
-          backgroundColor: ['#60A5FA', '#34D399', '#F87171', '#FBBF24'],
-          borderRadius: 4,
+          backgroundColor: ['#3B82F6', '#F59E0B'],
+          borderRadius: 6,
           borderSkipped: false,
+          maxBarThickness: 72,
+          categoryPercentage: 0.55,
+          barPercentage: 0.7,
         }],
       },
       options: {
@@ -3196,8 +3258,17 @@
         maintainAspectRatio: false,
         plugins: { legend: { display: false }, tooltip: d.tooltip },
         scales: {
-          x: { ticks: d.ticks, grid: { display: false } },
-          y: { ticks: d.ticks, grid: d.grid },
+          x: {
+            ticks: { ...d.ticks, font: { size: 11, weight: '600' } },
+            grid: { display: false },
+            border: { display: false },
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { ...d.ticks, stepSize: 1, precision: 0 },
+            grid: { color: d.grid?.color || 'rgba(148,163,184,0.15)' },
+            border: { display: false },
+          },
         },
       },
     });
@@ -4618,6 +4689,270 @@
     }
   }
 
+  const LOAD_FORECAST_INTERVALS = {
+    '15m': { count: 16, xTitle: 'Time', stepMin: 15 },
+    hourly: { count: 12, xTitle: 'Hour', stepMin: 60 },
+    '24h': { count: 24, xTitle: 'Hour of Day', stepMin: 60 },
+    weekly: { count: 7, xTitle: 'Day', stepMin: 1440 },
+  };
+
+  function hashFilterSeed() {
+    const key = [
+      state.filters.zone,
+      state.filters.circle,
+      state.filters.division,
+      state.filters.substation,
+      state.filters.voltageLevel,
+    ].join('|');
+    let h = 2166136261;
+    for (let i = 0; i < key.length; i++) {
+      h ^= key.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return Math.abs(h);
+  }
+
+  function seededUnit(seed, salt) {
+    const x = Math.sin(seed * 12.9898 + salt * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  function getSelectedLocationLabel() {
+    const zone = getFilterZone();
+    const circle = getFilterCircle();
+    const division = getFilterDivision();
+    const substations = getSubstationsForFilter();
+    const ss = !isFilterAll(state.filters.substation) ? substations[state.filters.substation] : null;
+    if (ss) return getSubstationLabel(ss);
+    if (division) return division.label || state.filters.division;
+    if (circle) return circle.label || state.filters.circle;
+    if (zone) return zone.label || state.filters.zone;
+    return 'All Zones';
+  }
+
+  function getFilterLoadScaleMw() {
+    const seed = hashFilterSeed();
+    let scale = 22 + (seed % 8);
+    if (!isFilterAll(state.filters.zone)) scale *= 0.72 + seededUnit(seed, 1) * 0.2;
+    if (!isFilterAll(state.filters.circle)) scale *= 0.78 + seededUnit(seed, 2) * 0.15;
+    if (!isFilterAll(state.filters.division)) scale *= 0.7 + seededUnit(seed, 3) * 0.18;
+    if (!isFilterAll(state.filters.substation)) scale *= 0.35 + seededUnit(seed, 4) * 0.2;
+    if (!isFilterAll(state.filters.voltageLevel)) {
+      const v = Number(state.filters.voltageLevel) || 220;
+      scale *= clamp(v / 220, 0.55, 1.35);
+    }
+    return scale;
+  }
+
+  function formatClockLabel(date) {
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  }
+
+  function buildLoadForecastSeries(intervalKey = state.loadForecastInterval) {
+    const cfg = LOAD_FORECAST_INTERVALS[intervalKey] || LOAD_FORECAST_INTERVALS.hourly;
+    const seed = hashFilterSeed();
+    const baseMw = (state.data?.feeders?.all?.mw || 140) * (0.85 + seededUnit(seed, 5) * 0.3);
+    const now = new Date();
+    const labels = [];
+    const actual = [];
+    const predicted = [];
+    const margin = [];
+
+    for (let i = 0; i < cfg.count; i++) {
+      const t = new Date(now);
+      if (intervalKey === 'weekly') {
+        t.setDate(t.getDate() - (cfg.count - 1 - i));
+        labels.push(t.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' }));
+      } else if (intervalKey === '24h') {
+        labels.push(`${String(i).padStart(2, '0')}:00`);
+      } else {
+        t.setMinutes(t.getMinutes() - (cfg.count - 1 - i) * cfg.stepMin);
+        labels.push(formatClockLabel(t));
+      }
+      const wave = Math.sin((i + seed % 7) / 2.4) * (12 + seededUnit(seed, i + 1) * 8);
+      const noise = (seededUnit(seed, i + 40) - 0.5) * 6;
+      const act = clamp(baseMw + wave + noise, 60, 240);
+      const pred = clamp(act + (seededUnit(seed, i + 80) - 0.5) * 8, 60, 240);
+      const m = 2 + seededUnit(seed, i + 120) * 5;
+      actual.push(Number(act.toFixed(1)));
+      predicted.push(Number(pred.toFixed(1)));
+      margin.push(Number(m.toFixed(1)));
+    }
+
+    return { labels, actual, predicted, margin, xTitle: cfg.xTitle };
+  }
+
+  function syncLoadForecastChart(animate = false) {
+    const chart = state.charts.loadForecast;
+    const emptyEl = document.getElementById('la-forecast-empty');
+    const wrap = document.querySelector('.la-forecast-chart-wrap');
+    const series = buildLoadForecastSeries(state.loadForecastInterval);
+    state.data.loadForecast = series;
+
+    if (!chart) {
+      if (emptyEl) emptyEl.hidden = false;
+      if (wrap) wrap.hidden = true;
+      return;
+    }
+
+    if (!series.labels.length) {
+      if (emptyEl) emptyEl.hidden = false;
+      if (wrap) wrap.hidden = true;
+      return;
+    }
+
+    if (emptyEl) emptyEl.hidden = true;
+    if (wrap) wrap.hidden = false;
+
+    chart.data.labels = series.labels;
+    chart.data.datasets[0].data = series.actual;
+    chart.data.datasets[1].data = series.predicted;
+    chart.data.datasets[2].data = series.predicted.map((v, i) => v + series.margin[i]);
+    chart.data.datasets[3].data = series.predicted.map((v, i) => v - series.margin[i]);
+    if (chart.options.scales?.x) {
+      chart.options.scales.x.title = {
+        display: true,
+        text: series.xTitle || 'Time',
+        color: chartDefaults().color,
+      };
+    }
+    chart.update(animate ? 'default' : 'none');
+  }
+
+  function getLocationWeather() {
+    const seed = hashFilterSeed();
+    const conditions = [
+      { name: 'Sunny', icon: 'sun' },
+      { name: 'Cloudy', icon: 'cloud' },
+      { name: 'Partly Cloudy', icon: 'cloud-sun' },
+      { name: 'Rainy', icon: 'cloud-rain' },
+      { name: 'Hazy', icon: 'cloud-fog' },
+      { name: 'Windy', icon: 'wind' },
+    ];
+    const condition = conditions[seed % conditions.length];
+    const base = state.data?.weather || { temp: 32, humidity: 68, wind: 14 };
+    return {
+      temp: clamp(Math.round(base.temp + (seededUnit(seed, 9) - 0.5) * 10), 18, 44),
+      condition: condition.name,
+      icon: condition.icon,
+      humidity: clamp(Math.round(base.humidity + (seededUnit(seed, 10) - 0.5) * 20), 35, 95),
+      wind: clamp(Math.round(base.wind + (seededUnit(seed, 11) - 0.5) * 12), 4, 42),
+      location: getSelectedLocationLabel(),
+    };
+  }
+
+  function renderLoadWeatherOverview() {
+    const loading = document.getElementById('la-weather-loading');
+    const empty = document.getElementById('la-weather-empty');
+    const overview = document.getElementById('la-weather-overview');
+    if (!overview) return;
+
+    const weather = getLocationWeather();
+    if (!weather) {
+      if (empty) empty.hidden = false;
+      overview.hidden = true;
+      return;
+    }
+
+    if (loading) loading.hidden = true;
+    if (empty) empty.hidden = true;
+    overview.hidden = false;
+
+    const setText = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val;
+    };
+    setText('la-weather-location', weather.location);
+    setText('la-weather-temp', `${weather.temp}°C`);
+    setText('la-weather-condition', weather.condition);
+    setText('la-weather-humidity', `${weather.humidity}%`);
+    setText('la-weather-wind', `${weather.wind} km/h`);
+
+    const iconWrap = document.getElementById('la-weather-icon');
+    if (iconWrap) {
+      iconWrap.innerHTML = `<i data-lucide="${weather.icon}" class="h-8 w-8"></i>`;
+      lucide.createIcons({ nodes: iconWrap.querySelectorAll('[data-lucide]') });
+    }
+  }
+
+  function getZonePeakLoadData(intervalKey = state.zonePeakInterval) {
+    const seed = hashFilterSeed() + String(intervalKey).length * 97;
+    const scale = getFilterLoadScaleMw();
+    const base = (state.data?.feeders?.all?.mw || 150) * scale;
+    const intervalBump = intervalKey === '15m' ? 0.92 : intervalKey === '24h' ? 1.06 : 1;
+    const todayActual = Math.round(base * intervalBump * (0.98 + seededUnit(seed, 21) * 0.08));
+    const todayPred = Math.round(todayActual * (0.985 + seededUnit(seed, 22) * 0.025));
+    const tomorrowPred = Math.round(todayActual * (1.08 + seededUnit(seed, 23) * 0.12));
+
+    const peakHour = 9 + Math.floor(seededUnit(seed, 24) * 5);
+    const peakMin = intervalKey === '15m'
+      ? [0, 15, 30, 45][Math.floor(seededUnit(seed, 25) * 4)]
+      : [0, 30][Math.floor(seededUnit(seed, 25) * 2)];
+    const tomorrowHour = 15 + Math.floor(seededUnit(seed, 26) * 4);
+    const tomorrowMin = intervalKey === '15m' ? 0 : 0;
+
+    const fmt = (h, m) => `at ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    return {
+      todayActual: { mw: todayActual, time: fmt(peakHour, peakMin) },
+      todayPredicted: { mw: todayPred, time: fmt(peakHour, peakMin) },
+      tomorrowPredicted: { mw: tomorrowPred, time: fmt(tomorrowHour, tomorrowMin) },
+    };
+  }
+
+  function renderZonePeakLoad() {
+    const loading = document.getElementById('la-peak-loading');
+    const empty = document.getElementById('la-peak-empty');
+    const grid = document.getElementById('la-peak-grid');
+    if (!grid) return;
+
+    const data = getZonePeakLoadData(state.zonePeakInterval);
+    if (!data) {
+      if (empty) empty.hidden = false;
+      grid.hidden = true;
+      return;
+    }
+
+    if (loading) loading.hidden = true;
+    if (empty) empty.hidden = true;
+    grid.hidden = false;
+
+    const setText = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val;
+    };
+    setText('la-peak-actual-mw', `${data.todayActual.mw.toLocaleString('en-IN')} MW`);
+    setText('la-peak-actual-time', data.todayActual.time);
+    setText('la-peak-pred-mw', `${data.todayPredicted.mw.toLocaleString('en-IN')} MW`);
+    setText('la-peak-pred-time', data.todayPredicted.time);
+    setText('la-peak-tmr-mw', `${data.tomorrowPredicted.mw.toLocaleString('en-IN')} MW`);
+    setText('la-peak-tmr-time', data.tomorrowPredicted.time);
+  }
+
+  function setLoadWidgetLoading(ids, isLoading) {
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.hidden = !isLoading;
+    });
+  }
+
+  function refreshLoadProfileWidgets({ animateForecast = false, showLoading = false } = {}) {
+    const run = () => {
+      renderLoadAnalytics();
+      renderLoadWeatherOverview();
+      renderZonePeakLoad();
+      syncLoadForecastChart(animateForecast);
+      setLoadWidgetLoading(['la-forecast-loading', 'la-weather-loading', 'la-peak-loading'], false);
+    };
+
+    if (!showLoading) {
+      run();
+      return;
+    }
+
+    setLoadWidgetLoading(['la-forecast-loading', 'la-weather-loading', 'la-peak-loading'], true);
+    window.setTimeout(run, 280);
+  }
+
   function getLoadStats(feederKey = state.currentFeeder) {
     const data = state.data;
     const lp = data.loadProfile;
@@ -4664,8 +4999,6 @@
     const actual = stats.current;
     const deviation = ((actual - scheduled) / scheduled) * 100;
     const availability = Math.max(actual + rand(18, 30), 160);
-    const dsm = Math.max(0, Math.round(Math.abs(actual - scheduled) * 4900));
-    const anomalies = Math.max(0, Math.round(Math.abs(deviation) * 1.8));
 
     const setText = (id, val) => {
       const el = document.getElementById(id);
@@ -4675,8 +5008,6 @@
     setText('la-actual', `${actual.toFixed(0)} MW`);
     setText('la-deviation', `${deviation >= 0 ? '+' : ''}${deviation.toFixed(1)}%`);
     setText('la-availability', `${availability.toFixed(0)} MW`);
-    setText('la-dsm', `Rs ${dsm.toLocaleString('en-IN')}`);
-    setText('la-load-anomalies', `${anomalies}`);
 
     const technical = state.data.losses.technical;
     const nonTechnical = state.data.losses.nonTechnical;
@@ -4687,6 +5018,9 @@
     setText('la-loss-technical', `${technical.toFixed(1)}%`);
     setText('la-loss-nontechnical', `${nonTechnical.toFixed(1)}%`);
     setText('la-loss-best', bestFeeder[0]);
+
+    renderLoadWeatherOverview();
+    renderZonePeakLoad();
   }
 
   function renderTransmissionLossAnalytics() {
@@ -4730,17 +5064,16 @@
 
   function renderPowerQualityAnalytics() {
     const pq = state.data.powerQuality;
+    const soPq = getSoPowerQualitySnapshot(state.data);
+    const reactive = pq.reactiveMvar ?? soPq.reactiveMvar;
     const setText = (id, val) => {
       const el = document.getElementById(id);
       if (el) el.textContent = val;
     };
-    setText('pq-tab-thd-value', `${pq.thd.toFixed(2)}%`);
+    setText('pq-tab-reactive-value', `${Number(reactive).toFixed(1)} MVAR`);
     setText('pq-tab-voltage-value', `${pq.voltage.toFixed(1)}%`);
-    setText('pq-tab-flicker-value', pq.flicker.toFixed(2));
-    setText('pq-tab-transient-value', `${pq.transients}`);
-
-    const compliance = pq.thd < 5 && pq.voltage > 95 && pq.flicker < 1;
-    setText('pq-tab-status', compliance ? 'Grid Code: PASS' : 'Grid Code: ALERT');
+    setText('pq-tab-sag-value', `${pq.voltageSags ?? state.data.pqEvents.sags}`);
+    setText('pq-tab-swell-value', `${pq.voltageSwells ?? state.data.pqEvents.swells}`);
   }
 
   function formatAlarmAge(ts) {
@@ -5311,11 +5644,6 @@
     }
 
     // Load profile — feeder ratio handled in applyChartTimeFilter
-    if (state.charts.loadFeeder) {
-      const keys = ['f1', 'f2', 'f3', 'f4'];
-      state.charts.loadFeeder.data.datasets[0].data = keys.map((k) => data.feeders[k].mw);
-      state.charts.loadFeeder.update('none');
-    }
 
     if (state.charts.loadScheduledVsActual) {
       const actualNow = data.feeders.all.mw;
@@ -5348,6 +5676,10 @@
     // PQ gauges
     const pq = data.powerQuality;
     const soPq = getSoPowerQualitySnapshot(data);
+    const reactiveVal = pq.reactiveMvar ?? soPq.reactiveMvar;
+    const reactiveMax = Math.max(100, reactiveVal * 1.35);
+    const sagVal = pq.voltageSags ?? data.pqEvents.sags;
+    const swellVal = pq.voltageSwells ?? data.pqEvents.swells;
     const gauges = [
       { chart: state.charts.pqActive, val: soPq.activeMw, max: soPq.activeMax, color: CHART_PRIMARY },
       { chart: state.charts.pqReactive, val: soPq.reactiveMvar, max: soPq.reactiveMax, color: CHART_TEAL },
@@ -5357,37 +5689,52 @@
         max: 100,
         color: soPq.voltageBand < 96 ? CHART_DANGER : CHART_SUCCESS,
       },
-      { chart: state.charts.pqThdTab, val: pq.thd, max: 8, color: pq.thd > 5 ? '#ef4444' : '#06b6d4' },
+      {
+        chart: state.charts.pqReactiveTab,
+        val: reactiveVal,
+        max: reactiveMax,
+        color: reactiveVal > reactiveMax * 0.85 ? CHART_DANGER : CHART_TEAL,
+      },
       { chart: state.charts.pqVoltageTab, val: pq.voltage, max: 100, color: pq.voltage < 96 ? '#ef4444' : '#22c55e' },
-      { chart: state.charts.pqFlickerTab, val: pq.flicker, max: 1.5, color: pq.flicker > 0.8 ? '#ef4444' : '#f59e0b' },
-      { chart: state.charts.pqTransientTab, val: pq.transients, max: 12, color: pq.transients > 6 ? '#ef4444' : '#06b6d4' },
+      { chart: state.charts.pqSagTab, val: sagVal, max: 12, color: sagVal > 8 ? '#ef4444' : '#3B82F6' },
+      { chart: state.charts.pqSwellTab, val: swellVal, max: 10, color: swellVal > 6 ? '#ef4444' : '#F59E0B' },
     ];
     gauges.forEach(({ chart, val, max, color }) => {
       if (!chart) return;
       const track = getChartColors().track;
-      chart.data.datasets[0].data = [val, max - val];
+      chart.data.datasets[0].data = [val, Math.max(max - val, 0)];
       chart.data.datasets[0].backgroundColor = [color, track];
       chart.update('none');
     });
 
     if (state.charts.pqTrend) {
       const trend = data.powerQualityTrend;
-      trend.thd.push(clamp(pq.thd + rand(-0.08, 0.08), 1.8, 6.5));
-      trend.flicker.push(clamp(pq.flicker + rand(-0.04, 0.04), 0.2, 1.2));
-      if (trend.thd.length > trend.labels.length) trend.thd.shift();
-      if (trend.flicker.length > trend.labels.length) trend.flicker.shift();
+      const feeder = data.feeders?.all || { mw: 140, mva: 155 };
+      const nextDeviation = clamp(Math.abs(100 - pq.voltage) + rand(-0.2, 0.2), 0.1, 5);
+      const nextActive = clamp(feeder.mw + rand(-3, 3), 80, 180);
+      const nextReactive = clamp(reactiveVal + rand(-2, 2), 25, 110);
+      const nextFreq = clamp(data.gridFrequency + rand(-0.02, 0.02), 49.7, 50.3);
+      trend.voltageDeviation.push(nextDeviation);
+      trend.activePower.push(nextActive);
+      trend.reactivePower.push(nextReactive);
+      trend.frequency.push(nextFreq);
+      const maxLen = trend.labels.length;
+      ['voltageDeviation', 'activePower', 'reactivePower', 'frequency'].forEach((key) => {
+        while (trend[key].length > maxLen) trend[key].shift();
+      });
+      state.charts.pqTrend.data.datasets[0].data = trend.voltageDeviation.slice();
+      state.charts.pqTrend.data.datasets[1].data = trend.activePower.slice();
+      state.charts.pqTrend.data.datasets[2].data = trend.reactivePower.slice();
+      state.charts.pqTrend.data.datasets[3].data = trend.frequency.slice();
+      state.charts.pqTrend.update('none');
     }
 
     if (state.charts.pqEvents) {
-      data.pqEvents.sags = clamp(Math.round(data.pqEvents.sags + rand(-1, 1)), 0, 12);
-      data.pqEvents.swells = clamp(Math.round(data.pqEvents.swells + rand(-1, 1)), 0, 10);
-      data.pqEvents.interruptions = clamp(Math.round(data.pqEvents.interruptions + rand(-1, 1)), 0, 8);
-      data.pqEvents.harmonics = clamp(Math.round(data.pqEvents.harmonics + rand(-1, 1)), 0, 14);
+      data.pqEvents.sags = sagVal;
+      data.pqEvents.swells = swellVal;
       state.charts.pqEvents.data.datasets[0].data = [
         data.pqEvents.sags,
         data.pqEvents.swells,
-        data.pqEvents.interruptions,
-        data.pqEvents.harmonics,
       ];
       state.charts.pqEvents.update('none');
     }
@@ -6031,6 +6378,7 @@
     state.filters.voltageLevel = document.getElementById('filter-voltage')?.value || 'all';
     initMockData();
     updateDOM();
+    refreshLoadProfileWidgets({ showLoading: true, animateForecast: true });
     scheduleChartRefresh();
   }
 
@@ -6052,6 +6400,7 @@
     drpUpdateTriggerLabel();
     initMockData();
     updateDOM();
+    refreshLoadProfileWidgets({ showLoading: true, animateForecast: true });
     scheduleChartRefresh();
   }
 
@@ -6213,12 +6562,30 @@
 
     document.getElementById('sidebar-collapse')?.addEventListener('click', toggleSidebarCollapse);
 
-    document.getElementById('feeder-select').addEventListener('change', (e) => {
+    document.getElementById('feeder-select')?.addEventListener('change', (e) => {
       state.currentFeeder = e.target.value;
       updateCharts();
       renderLoadAnalytics();
       document.getElementById('ov-load').textContent =
         `${(state.data.feeders[state.currentFeeder]?.mw || state.data.feeders.all.mw).toFixed(1)} MW`;
+    });
+
+    document.getElementById('la-forecast-interval')?.addEventListener('change', (e) => {
+      state.loadForecastInterval = e.target.value;
+      setLoadWidgetLoading(['la-forecast-loading'], true);
+      window.setTimeout(() => {
+        syncLoadForecastChart(true);
+        setLoadWidgetLoading(['la-forecast-loading'], false);
+      }, 220);
+    });
+
+    document.getElementById('la-peak-interval')?.addEventListener('change', (e) => {
+      state.zonePeakInterval = e.target.value;
+      setLoadWidgetLoading(['la-peak-loading'], true);
+      window.setTimeout(() => {
+        renderZonePeakLoad();
+        setLoadWidgetLoading(['la-peak-loading'], false);
+      }, 220);
     });
 
     document.getElementById('filter-zone').addEventListener('change', (e) => {

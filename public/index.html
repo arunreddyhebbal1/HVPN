@@ -218,19 +218,19 @@
 
         <div class="filter-toolbar">
           <div class="filter-field">
-            <label for="filter-zone" class="filter-label">Zone</label>
+            <label for="filter-zone" class="filter-label">Zone Name</label>
             <select id="filter-zone" class="filter-select"></select>
           </div>
           <div class="filter-field">
-            <label for="filter-circle" class="filter-label">Circle</label>
+            <label for="filter-circle" class="filter-label">Circle Name</label>
             <select id="filter-circle" class="filter-select"></select>
           </div>
           <div class="filter-field">
-            <label for="filter-division" class="filter-label">Division</label>
+            <label for="filter-division" class="filter-label">Division Name</label>
             <select id="filter-division" class="filter-select"></select>
           </div>
           <div class="filter-field">
-            <label for="filter-substation" class="filter-label">Sub Station</label>
+            <label for="filter-substation" class="filter-label">Sub Station Name</label>
             <select id="filter-substation" class="filter-select"></select>
           </div>
           <div class="filter-field">
@@ -584,17 +584,16 @@
         <!-- POWER QUALITY ANALYTICS -->
         <section id="view-power-quality" class="view view-stack">
 
-          <div class="panel">
+          <div class="panel pq-snapshot-panel page-section">
             <div class="panel-header">
               <h3>Quality Snapshot</h3>
-              <span class="badge badge-success" id="pq-tab-status">Grid Code: PASS</span>
             </div>
             <div class="panel-body">
-              <div class="pq-grid">
+              <div class="pq-grid pq-snapshot-grid">
                 <div class="pq-metric">
-                  <div class="pq-gauge-wrap"><canvas id="pq-tab-thd-gauge"></canvas></div>
-                  <p class="pq-label">Harmonic Distortion (THD)</p>
-                  <p class="pq-value" id="pq-tab-thd-value">2.8%</p>
+                  <div class="pq-gauge-wrap"><canvas id="pq-tab-reactive-gauge"></canvas></div>
+                  <p class="pq-label">Reactive Power (MVAR)</p>
+                  <p class="pq-value" id="pq-tab-reactive-value">68.9 MVAR</p>
                 </div>
                 <div class="pq-metric">
                   <div class="pq-gauge-wrap"><canvas id="pq-tab-voltage-gauge"></canvas></div>
@@ -602,27 +601,27 @@
                   <p class="pq-value" id="pq-tab-voltage-value">98.2%</p>
                 </div>
                 <div class="pq-metric">
-                  <div class="pq-gauge-wrap"><canvas id="pq-tab-flicker-gauge"></canvas></div>
-                  <p class="pq-label">Flicker Index</p>
-                  <p class="pq-value" id="pq-tab-flicker-value">0.42</p>
+                  <div class="pq-gauge-wrap"><canvas id="pq-tab-sag-gauge"></canvas></div>
+                  <p class="pq-label">Voltage Sag</p>
+                  <p class="pq-value" id="pq-tab-sag-value">5</p>
                 </div>
                 <div class="pq-metric">
-                  <div class="pq-gauge-wrap"><canvas id="pq-tab-transient-gauge"></canvas></div>
-                  <p class="pq-label">Transient Events / hr</p>
-                  <p class="pq-value" id="pq-tab-transient-value">3</p>
+                  <div class="pq-gauge-wrap"><canvas id="pq-tab-swell-gauge"></canvas></div>
+                  <p class="pq-label">Voltage Swells</p>
+                  <p class="pq-value" id="pq-tab-swell-value">2</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="grid-2 page-section">
-            <div class="panel">
+          <div class="grid-2 page-section pq-charts-grid">
+            <div class="panel pq-chart-panel">
               <div class="panel-header"><h3>Power Quality Trend</h3></div>
-              <div class="panel-body chart-container-lg"><canvas id="pq-trend-chart"></canvas></div>
+              <div class="panel-body chart-container-lg pq-chart-body"><canvas id="pq-trend-chart"></canvas></div>
             </div>
-            <div class="panel">
+            <div class="panel pq-chart-panel">
               <div class="panel-header"><h3>Event Distribution</h3></div>
-              <div class="panel-body chart-container-lg"><canvas id="pq-events-chart"></canvas></div>
+              <div class="panel-body chart-container-lg pq-chart-body"><canvas id="pq-events-chart"></canvas></div>
             </div>
           </div>
         </section>
@@ -630,7 +629,7 @@
         <!-- LOAD ANALYTICS -->
         <section id="view-load-analytics" class="view view-stack">
 
-          <div class="kpi-grid-compact">
+          <div class="kpi-grid-compact page-section">
             <div class="kpi-card kpi-compact kpi-accent-blue">
               <div class="kpi-compact-row">
                 <div class="kpi-icon-wrap"><i data-lucide="zap" class="h-5 w-5"></i></div>
@@ -678,7 +677,7 @@
             </div>
           </div>
 
-          <div class="kpi-grid-compact">
+          <div class="kpi-grid-compact page-section la-drawal-grid">
             <div class="kpi-card kpi-compact kpi-accent-blue">
               <div class="kpi-compact-row">
                 <div class="kpi-compact-body">
@@ -711,19 +710,41 @@
                 </div>
               </div>
             </div>
-            <div class="kpi-card kpi-compact kpi-accent-red">
-              <div class="kpi-compact-row">
-                <div class="kpi-compact-body">
-                  <p class="kpi-label">DSM Penalty</p>
-                  <div class="kpi-compact-values"><p class="kpi-value" id="la-dsm">Rs 24,500</p></div>
-                </div>
+          </div>
+
+          <div class="panel page-section la-zone-peak-panel">
+            <div class="panel-header">
+              <h3>Zone-wise Peak Load</h3>
+              <div class="panel-header-actions">
+                <label class="text-muted text-sm" for="la-peak-interval">Interval</label>
+                <select id="la-peak-interval" class="select-sm" aria-label="Peak load time interval">
+                  <option value="15m">15 Minutes</option>
+                  <option value="hourly" selected>Hourly</option>
+                  <option value="24h">24 Hours</option>
+                </select>
               </div>
             </div>
-            <div class="kpi-card kpi-compact kpi-accent-orange">
-              <div class="kpi-compact-row">
-                <div class="kpi-compact-body">
-                  <p class="kpi-label">Anomalies</p>
-                  <div class="kpi-compact-values"><p class="kpi-value" id="la-load-anomalies">7</p></div>
+            <div class="panel-body">
+              <div class="la-peak-loading" id="la-peak-loading" hidden>
+                <span class="la-spinner" aria-hidden="true"></span>
+                <span>Loading peak load data…</span>
+              </div>
+              <div class="la-peak-empty empty-state" id="la-peak-empty" hidden>No Data Available</div>
+              <div class="kpi-grid-compact la-peak-grid" id="la-peak-grid">
+                <div class="kpi-card kpi-compact kpi-accent-blue la-peak-card">
+                  <p class="kpi-label">Today's Peak (Actual)</p>
+                  <p class="kpi-value" id="la-peak-actual-mw">—</p>
+                  <p class="kpi-subtitle" id="la-peak-actual-time">—</p>
+                </div>
+                <div class="kpi-card kpi-compact kpi-accent-teal la-peak-card">
+                  <p class="kpi-label">Today's Peak (Predicted)</p>
+                  <p class="kpi-value" id="la-peak-pred-mw">—</p>
+                  <p class="kpi-subtitle" id="la-peak-pred-time">—</p>
+                </div>
+                <div class="kpi-card kpi-compact kpi-accent-orange la-peak-card">
+                  <p class="kpi-label">Tomorrow's Peak (Predicted)</p>
+                  <p class="kpi-value" id="la-peak-tmr-mw">—</p>
+                  <p class="kpi-subtitle" id="la-peak-tmr-time">—</p>
                 </div>
               </div>
             </div>
@@ -740,7 +761,7 @@
             </div>
           </div>
 
-          <div class="panel">
+          <div class="panel page-section">
             <div class="panel-header">
               <h3>Load Profile Analytics</h3>
               <div class="panel-header-actions">
@@ -760,21 +781,71 @@
             <div class="panel-body chart-container-lg"><canvas id="load-profile-chart"></canvas></div>
           </div>
 
-          <div class="panel">
-            <div class="panel-header">
-              <h3>Load Forecasting (STLF)</h3>
-              <div class="legend-inline">
-                <span class="legend-item"><span class="legend-dot legend-primary"></span> Actual Load</span>
-                <span class="legend-item"><span class="legend-dot legend-violet"></span> Predicted Load</span>
-                <span class="legend-item"><span class="legend-dot legend-warning"></span> Margin of Error</span>
+          <div class="grid-2 page-section la-forecast-weather-grid">
+            <div class="panel la-forecast-panel">
+              <div class="panel-header">
+                <h3>Load Forecasting (STLF)</h3>
+                <div class="panel-header-actions">
+                  <label class="text-muted text-sm" for="la-forecast-interval">Trend</label>
+                  <select id="la-forecast-interval" class="select-sm" aria-label="Forecast trend duration">
+                    <option value="15m">15 Minutes</option>
+                    <option value="hourly" selected>Hourly</option>
+                    <option value="24h">24 Hours</option>
+                    <option value="weekly">Weekly</option>
+                  </select>
+                </div>
+              </div>
+              <div class="panel-body">
+                <div class="legend-inline la-forecast-legend">
+                  <span class="legend-item"><span class="legend-dot legend-primary"></span> Actual Load</span>
+                  <span class="legend-item"><span class="legend-dot legend-violet"></span> Predicted Load</span>
+                  <span class="legend-item"><span class="legend-dot legend-warning"></span> Margin of Error</span>
+                </div>
+                <div class="la-forecast-loading" id="la-forecast-loading" hidden>
+                  <span class="la-spinner" aria-hidden="true"></span>
+                  <span>Updating forecast…</span>
+                </div>
+                <div class="la-forecast-empty empty-state" id="la-forecast-empty" hidden>No Data Available</div>
+                <div class="chart-container-lg la-forecast-chart-wrap">
+                  <canvas id="load-forecast-chart"></canvas>
+                </div>
               </div>
             </div>
-            <div class="panel-body chart-container-lg"><canvas id="load-forecast-chart"></canvas></div>
-          </div>
 
-          <div class="panel">
-            <div class="panel-header"><h3>Feeder Load Comparison</h3></div>
-            <div class="panel-body chart-container"><canvas id="load-feeder-chart"></canvas></div>
+            <div class="panel la-weather-panel">
+              <div class="panel-header">
+                <h3>Weather Overview</h3>
+                <span class="text-xs text-muted" id="la-weather-location">All Zones</span>
+              </div>
+              <div class="panel-body">
+                <div class="la-weather-loading" id="la-weather-loading" hidden>
+                  <span class="la-spinner" aria-hidden="true"></span>
+                  <span>Loading weather…</span>
+                </div>
+                <div class="la-weather-empty empty-state" id="la-weather-empty" hidden>No Data Available</div>
+                <div class="la-weather-overview" id="la-weather-overview">
+                  <div class="la-weather-hero">
+                    <div class="la-weather-icon-wrap" id="la-weather-icon" aria-hidden="true">
+                      <i data-lucide="sun" class="h-8 w-8"></i>
+                    </div>
+                    <div>
+                      <p class="la-weather-temp" id="la-weather-temp">32°C</p>
+                      <p class="la-weather-condition" id="la-weather-condition">Sunny</p>
+                    </div>
+                  </div>
+                  <div class="weather-grid la-weather-metrics">
+                    <div class="weather-item">
+                      <div class="w-label">Humidity</div>
+                      <div class="w-val" id="la-weather-humidity">68%</div>
+                    </div>
+                    <div class="weather-item">
+                      <div class="w-label">Wind Speed</div>
+                      <div class="w-val" id="la-weather-wind">14 km/h</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
         </section>
