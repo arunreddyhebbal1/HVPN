@@ -1251,11 +1251,117 @@ body.drp-scroll-lock {
 }
 
 .so-kpi-grid {
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 @media (max-width: 1280px) {
-  .so-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .so-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .so-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.so-loss-mix-chart {
+  height: 140px;
+  min-height: 120px;
+  max-width: 380px;
+}
+
+.so-pq-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+  .so-pq-grid { grid-template-columns: 1fr; }
+}
+
+.so-loss-grid {
+  align-items: stretch;
+}
+
+.so-monthly-loss-panel .panel-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.so-monthly-loss-body {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  flex: 1;
+  height: 360px;
+  min-height: 360px;
+  max-height: 360px;
+  padding: 8px 16px 14px;
+}
+
+.so-monthly-loss-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 20px;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.so-monthly-loss-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.so-monthly-loss-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.so-monthly-loss-dot--high { background: #ef4444; }
+.so-monthly-loss-dot--low { background: #22c55e; }
+.so-monthly-loss-dot--normal { background: #5b5ce2; }
+
+.so-monthly-loss-chart-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.so-geo-loss-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.so-geo-loss-block {
+  min-width: 0;
+}
+
+.so-geo-loss-title {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.so-geo-chart {
+  height: 108px;
+  min-height: 96px;
+}
+
+.so-geo-chart--tall {
+  height: 210px;
+  min-height: 190px;
+}
+
+#view-system-operation .so-geo-chart--tall {
+  height: 210px;
+  min-height: 190px;
 }
 
 .so-top-grid .panel-body { padding: 12px 16px; }

@@ -477,30 +477,12 @@
                 </div>
               </div>
             </div>
-            <div class="kpi-card kpi-compact kpi-accent-blue">
+            <div class="kpi-card kpi-compact kpi-accent-teal">
               <div class="kpi-compact-row">
-                <div class="kpi-icon-wrap"><i data-lucide="zap" class="h-4 w-4"></i></div>
+                <div class="kpi-icon-wrap"><i data-lucide="target" class="h-4 w-4"></i></div>
                 <div class="kpi-compact-body">
-                  <p class="kpi-label">Technical Loss</p>
-                  <div class="kpi-compact-values"><p class="kpi-value" id="tl-technical-loss">3.2%</p></div>
-                </div>
-              </div>
-            </div>
-            <div class="kpi-card kpi-compact kpi-accent-orange">
-              <div class="kpi-compact-row">
-                <div class="kpi-icon-wrap"><i data-lucide="plug-zap" class="h-4 w-4"></i></div>
-                <div class="kpi-compact-body">
-                  <p class="kpi-label">Non-Technical Loss</p>
-                  <div class="kpi-compact-values"><p class="kpi-value" id="tl-nontechnical-loss">1.1%</p></div>
-                </div>
-              </div>
-            </div>
-            <div class="kpi-card kpi-compact kpi-accent-green">
-              <div class="kpi-compact-row">
-                <div class="kpi-icon-wrap"><i data-lucide="git-branch" class="h-4 w-4"></i></div>
-                <div class="kpi-compact-body">
-                  <p class="kpi-label">Highest Loss Feeder</p>
-                  <div class="kpi-compact-values"><p class="kpi-value" id="tl-worst-feeder">F2</p></div>
+                  <p class="kpi-label">Transmission Availability Target</p>
+                  <div class="kpi-compact-values"><p class="kpi-value" id="tl-avail-target">99.20%</p></div>
                 </div>
               </div>
             </div>
@@ -519,54 +501,55 @@
             <div class="panel">
               <div class="panel-header">
                 <h3>Power Quality</h3>
-                <span class="badge" id="grid-compliance-badge">Grid Code: PASS</span>
               </div>
               <div class="panel-body">
-                <div class="pq-grid pq-grid--compact">
+                <div class="pq-grid pq-grid--compact so-pq-grid">
                   <div class="pq-metric">
-                    <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-thd-gauge"></canvas></div>
-                    <p class="pq-label">THD</p>
-                    <p class="pq-value" id="pq-thd-value">2.8%</p>
+                    <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-active-gauge"></canvas></div>
+                    <p class="pq-label">Active Power</p>
+                    <p class="pq-value" id="pq-active-value">142.5 MW</p>
                   </div>
                   <div class="pq-metric">
-                    <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-voltage-gauge"></canvas></div>
-                    <p class="pq-label">Voltage</p>
-                    <p class="pq-value" id="pq-voltage-value">98.2%</p>
+                    <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-reactive-gauge"></canvas></div>
+                    <p class="pq-label">Reactive Power</p>
+                    <p class="pq-value" id="pq-reactive-value">68.9 MVAR</p>
                   </div>
                   <div class="pq-metric">
-                    <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-flicker-gauge"></canvas></div>
-                    <p class="pq-label">Flicker</p>
-                    <p class="pq-value" id="pq-flicker-value">0.42</p>
-                  </div>
-                  <div class="pq-metric">
-                    <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-transient-gauge"></canvas></div>
-                    <p class="pq-label">Transients/hr</p>
-                    <p class="pq-value" id="pq-transient-value">3</p>
+                    <div class="pq-gauge-wrap pq-gauge-wrap--sm"><canvas id="pq-vband-gauge"></canvas></div>
+                    <p class="pq-label">Voltage Band Compliance</p>
+                    <p class="pq-value" id="pq-vband-value">98.2%</p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="grid-2 page-section">
-            <div class="panel">
-              <div class="panel-header"><h3>Loss Mix</h3></div>
-              <div class="panel-body chart-container"><canvas id="tl-loss-mix-chart"></canvas></div>
-            </div>
-            <div class="panel">
-              <div class="panel-header"><h3>Feeder-wise Loss</h3></div>
-              <div class="panel-body chart-container"><canvas id="tl-feeder-loss-chart"></canvas></div>
-            </div>
-          </div>
-
-          <div class="grid-2 page-section">
-            <div class="panel">
+          <div class="grid-2 page-section so-loss-grid">
+            <div class="panel so-monthly-loss-panel">
               <div class="panel-header"><h3>Monthly Loss Trend</h3></div>
-              <div class="panel-body chart-container"><canvas id="tl-monthly-trend-chart"></canvas></div>
+              <div class="panel-body so-monthly-loss-body">
+                <div class="so-monthly-loss-legend" aria-hidden="true">
+                  <span><span class="so-monthly-loss-dot so-monthly-loss-dot--high"></span>Highest Loss</span>
+                  <span><span class="so-monthly-loss-dot so-monthly-loss-dot--low"></span>Lowest Loss</span>
+                  <span><span class="so-monthly-loss-dot so-monthly-loss-dot--normal"></span>Normal</span>
+                </div>
+                <div class="so-monthly-loss-chart-wrap">
+                  <canvas id="tl-monthly-trend-chart" aria-label="Monthly loss trend chart"></canvas>
+                </div>
+              </div>
             </div>
             <div class="panel">
-              <div class="panel-header"><h3>Region-wise Loss</h3></div>
-              <div class="panel-body chart-container"><canvas id="tl-region-loss-chart"></canvas></div>
+              <div class="panel-header"><h3>Zone &amp; Circle Loss</h3></div>
+              <div class="panel-body so-geo-loss-body">
+                <div class="so-geo-loss-block">
+                  <h4 class="so-geo-loss-title">Zone-wise</h4>
+                  <div class="chart-container so-geo-chart"><canvas id="tl-zone-loss-chart"></canvas></div>
+                </div>
+                <div class="so-geo-loss-block">
+                  <h4 class="so-geo-loss-title">Circle-wise</h4>
+                  <div class="chart-container so-geo-chart so-geo-chart--tall"><canvas id="tl-circle-loss-chart"></canvas></div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -576,10 +559,9 @@
               <table class="data-table data-table--compact">
                 <thead>
                   <tr>
-                    <th>Area</th>
-                    <th>Technical</th>
-                    <th>Non-Technical</th>
-                    <th>Total</th>
+                    <th>Zone</th>
+                    <th>Circle</th>
+                    <th>Loss %</th>
                     <th>Priority</th>
                   </tr>
                 </thead>

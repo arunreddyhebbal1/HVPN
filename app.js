@@ -272,6 +272,213 @@
   const CHART_SUCCESS = '#00A870';
   const CHART_WARNING = '#F59E0B';
   const CHART_DANGER = '#DC2626';
+  const LOSS_BAR_NEUTRAL = '#60A5FA';
+  const LOSS_MONTHLY_HIGH = '#ef4444';
+  const LOSS_MONTHLY_LOW = '#22c55e';
+  const LOSS_MONTHLY_NORMAL = '#5b5ce2';
+
+  function lossMonthlyBarColor(ctx) {
+    const value = Number(ctx.raw);
+    const chart = ctx.chart;
+    const data = (chart.data.datasets[0].data || []).map((v) => Number(v) || 0);
+    if (!data.length) return LOSS_MONTHLY_NORMAL;
+    const max = Math.max(...data);
+    const min = Math.min(...data);
+    if (max !== min && value === max) return LOSS_MONTHLY_HIGH;
+    if (max !== min && value === min) return LOSS_MONTHLY_LOW;
+    const { ctx: canvas, chartArea } = chart;
+    if (!chartArea) return LOSS_MONTHLY_NORMAL;
+    const gradient = canvas.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+    gradient.addColorStop(0, '#4338ca');
+    gradient.addColorStop(0.45, '#7c6df2');
+    gradient.addColorStop(0.75, '#4a90e2');
+    gradient.addColorStop(1, '#27c5c3');
+    return gradient;
+  }
+
+  function buildLossGeoData() {
+    const zones = {};
+    const circles = {};
+    Object.entries(FILTER_HIERARCHY).forEach(([, zone]) => {
+      zones[zone.label] = Number(rand(0.9, 2.4).toFixed(2));
+      Object.values(zone.circles || {}).forEach((circle) => {
+        circles[circle.label] = Number(rand(0.6, 2.8).toFixed(2));
+      });
+    });
+    return { zones, circles };
+  }
+
+  function buildLossHotspots(geo) {
+    const rows = [];
+    Object.values(FILTER_HIERARCHY).forEach((zone) => {
+      Object.values(zone.circles || {}).forEach((circle) => {
+        const loss = geo.circles[circle.label] ?? rand(0.6, 2.8);
+        const value = Number(Number(loss).toFixed(2));
+        rows.push({
+          zone: zone.label,
+          circle: circle.label,
+          loss: value,
+          priority: value > 2.0 ? 'High' : value > 1.4 ? 'Medium' : 'Low',
+        });
+      });
+    });
+    return rows.sort((a, b) => b.loss - a.loss);
+  }
+
+  function lossBarHighlightColors(values, neutral = LOSS_BAR_NEUTRAL) {
+    const nums = values.map((v) => Number(v) || 0);
+    if (!nums.length) return [];
+    const max = Math.max(...nums);
+    const min = Math.min(...nums);
+    const maxIdx = nums.indexOf(max);
+    const minIdx = nums.indexOf(min);
+    return nums.map((_, i) => {
+      if (max !== min && i === maxIdx) return CHART_DANGER;
+      if (max !== min && i === minIdx) return CHART_SUCCESS;
+      return neutral;
+    });
+  }
+
+  const lossBarValuePlugin = {
+    id: 'lossBarValueLabels',
+    afterDatasetsDraw(chart) {
+      const meta = chart.getDatasetMeta(0);
+      if (!meta?.data?.length) return;
+      const { ctx } = chart;
+      const horizontal = chart.options.indexAxis === 'y';
+      meta.data.forEach((bar, i) => {
+        const val = chart.data.datasets[0].data[i];
+        if (val == null) return;
+        const label = `${Number(val).toFixed(1)}%`;
+        ctx.save();
+        ctx.fillStyle = isDark() ? '#F8FAFC' : '#0F172A';
+        ctx.font = "600 10px 'Inter', sans-serif";
+        if (horizontal) {
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(label, bar.x + 6, bar.y);
+        } else {
+          const { top } = chart.chartArea;
+          const above = bar.y - 6;
+          ctx.textAlign = 'center';
+          if (above < top + 14) {
+            ctx.textBaseline = 'top';
+            ctx.fillText(label, bar.x, bar.y + 6);
+          } else {
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(label, bar.x, above);
+          }
+        }
+        ctx.restore();
+      });
+    },
+  };
+
+  function syncLossMonthlyChart(chart, monthly) {
+    if (!chart || !monthly) return;
+    const values = monthly.total.map(Number);
+    chart.data.labels = monthly.labels.slice();
+    chart.data.datasets[0].data = values;
+    if (chart.canvas?.offsetParent !== null) chart.resize();
+    chart.update('none');
+  }
+
+  function syncLossGeoChart(chart, map) {
+    if (!chart || !map) return;
+    const labels = Object.keys(map);
+    const values = labels.map((k) => Number(map[k]) || 0);
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = values;
+    chart.data.datasets[0].backgroundColor = lossBarHighlightColors(values);
+    chart.update('none');
+  }
+
+  function buildMonthlyLossChartOptions(d) {
+    const tickColor = isDark() ? d.ticks.color : '#4b5563';
+    const gridColor = isDark() ? d.grid.color : '#e5e7eb';
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: { top: 4, left: 4, right: 8, bottom: 0 } },
+      datasets: {
+        bar: {
+          categoryPercentage: 0.88,
+          barPercentage: 0.92,
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...d.tooltip,
+          callbacks: {
+            label(ctx) {
+              return `Loss : ${ctx.raw}%`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          stacked: false,
+          ticks: { color: tickColor, font: { size: 11, weight: '600' } },
+          grid: { display: false },
+          border: { display: false },
+        },
+        y: {
+          stacked: false,
+          beginAtZero: true,
+          ticks: { color: d.ticks.color, callback(v) { return `${v}%`; } },
+          grid: { color: gridColor },
+          border: { display: false },
+        },
+      },
+    };
+  }
+
+  function computeReactiveMvar(mw, mva) {
+    const p = Number(mw) || 0;
+    const s = Number(mva) || p;
+    if (s <= p) return 0;
+    return Math.sqrt(Math.max(s * s - p * p, 0));
+  }
+
+  function getSoPowerQualitySnapshot(data) {
+    const feeder = data.feeders?.all || { mw: 0, mva: 0 };
+    const pq = data.powerQuality || {};
+    const activeMw = feeder.mw;
+    const reactiveMvar = computeReactiveMvar(feeder.mw, feeder.mva);
+    const voltageBand = pq.voltageBandCompliance ?? pq.voltage ?? 98.2;
+    const activeMax = Math.max(220, activeMw * 1.25);
+    const reactiveMax = Math.max(100, reactiveMvar * 1.35);
+    return { activeMw, reactiveMvar, voltageBand, activeMax, reactiveMax };
+  }
+
+  function buildGeoLossChartOptions(d, horizontal = true) {
+    const scales = horizontal
+      ? {
+        x: {
+          ticks: { ...d.ticks, callback(v) { return `${v}%`; } },
+          grid: d.grid,
+          title: { display: true, text: 'Loss %', color: d.color, font: { size: 11 } },
+        },
+        y: { ticks: { ...d.ticks, font: { size: 9 } }, grid: { display: false } },
+      }
+      : {
+        x: { ticks: d.ticks, grid: { display: false } },
+        y: {
+          ticks: { ...d.ticks, callback(v) { return `${v}%`; } },
+          grid: d.grid,
+          title: { display: true, text: 'Loss %', color: d.color, font: { size: 11 } },
+        },
+      };
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: horizontal ? 'y' : 'x',
+      plugins: { legend: { display: false }, tooltip: d.tooltip },
+      scales,
+    };
+  }
 
   const TIME_FILTER_CONFIG = {
     hour: { count: 24, unitLabel: 'Hour' },
@@ -778,6 +985,7 @@
       powerQuality: {
         thd: 2.8,
         voltage: 98.2,
+        voltageBandCompliance: 98.2,
         flicker: 0.42,
         transients: 3,
       },
@@ -787,17 +995,22 @@
         flicker: Array.from({ length: 12 }, () => rand(0.28, 0.62)),
       },
       pqEvents: { sags: 5, swells: 2, interruptions: 1, harmonics: 4 },
-      losses: {
-        technical: 3.2,
-        nonTechnical: 1.1,
-        feeders: { F1: 1.2, F2: 0.9, F3: 0.8, F4: 0.5 },
-        regions: { North: 1.4, South: 1.1, East: 0.9, West: 0.9 },
-        monthly: {
-          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-          technical: [3.5, 3.4, 3.3, 3.2, 3.3, 3.2],
-          nonTechnical: [1.3, 1.2, 1.2, 1.1, 1.1, 1.1],
-        },
-      },
+      losses: (() => {
+        const geo = buildLossGeoData();
+        return {
+          technical: 3.2,
+          nonTechnical: 1.1,
+          availabilityTarget: 99.20,
+          feeders: { F1: 1.2, F2: 0.9, F3: 0.8, F4: 0.5 },
+          zones: geo.zones,
+          circles: geo.circles,
+          monthly: {
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            total: [4.8, 4.6, 5.1, 4.3, 4.4, 4.2, 4.5, 4.7, 3.9, 4.0, 3.8, 4.3],
+          },
+          hotspots: buildLossHotspots(geo),
+        };
+      })(),
       assets: [
         { id: 'TX-01', type: 'Transformer', location: 'Bay A', score: 88, trend: 'up' },
         { id: 'TX-02', type: 'Transformer', location: 'Bay B', score: 62, trend: 'down' },
@@ -1467,6 +1680,7 @@
     const pq = state.data.powerQuality;
     pq.thd = clamp(pq.thd + rand(-0.15, 0.15), 1.5, 6);
     pq.voltage = clamp(pq.voltage + rand(-0.3, 0.3), 95, 100);
+    pq.voltageBandCompliance = clamp((pq.voltageBandCompliance ?? pq.voltage) + rand(-0.25, 0.25), 94, 100);
     pq.flicker = clamp(pq.flicker + rand(-0.05, 0.05), 0.2, 1.2);
     pq.transients = clamp(Math.round(pq.transients + rand(-1, 1)), 0, 12);
 
@@ -1476,9 +1690,15 @@
     Object.keys(state.data.losses.feeders).forEach((k) => {
       state.data.losses.feeders[k] = clamp(state.data.losses.feeders[k] + rand(-0.07, 0.07), 0.2, 2.2);
     });
-    Object.keys(state.data.losses.regions).forEach((k) => {
-      state.data.losses.regions[k] = clamp(state.data.losses.regions[k] + rand(-0.08, 0.08), 0.3, 2.8);
+    Object.keys(state.data.losses.zones || {}).forEach((k) => {
+      state.data.losses.zones[k] = Number(clamp(Number(state.data.losses.zones[k]) + rand(-0.05, 0.05), 0.5, 3.2).toFixed(2));
     });
+    Object.keys(state.data.losses.circles || {}).forEach((k) => {
+      state.data.losses.circles[k] = Number(clamp(Number(state.data.losses.circles[k]) + rand(-0.06, 0.06), 0.4, 3.5).toFixed(2));
+    });
+    if (state.data.losses.zones && state.data.losses.circles) {
+      state.data.losses.hotspots = buildLossHotspots(state.data.losses);
+    }
 
     // Asset scores drift
     state.data.assets.forEach((a) => {
@@ -2675,111 +2895,72 @@
       },
     });
 
-    state.charts.tlLossMix = new Chart(document.getElementById('tl-loss-mix-chart'), {
-      type: 'doughnut',
-      data: {
-        labels: ['Technical', 'Non-Technical'],
-        datasets: [{
-          data: [state.data.losses.technical, state.data.losses.nonTechnical],
-          backgroundColor: ['#0EA5E9', '#F59E0B'],
-          borderWidth: 0,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { color: d.color } }, tooltip: d.tooltip },
-      },
-    });
-
-    state.charts.tlFeederLoss = new Chart(document.getElementById('tl-feeder-loss-chart'), {
-      type: 'bar',
-      data: {
-        labels: Object.keys(state.data.losses.feeders),
-        datasets: [{
-          label: 'Loss %',
-          data: Object.values(state.data.losses.feeders),
-          backgroundColor: ['#60A5FA', '#34D399', '#FBBF24', '#F87171'],
-          borderRadius: 4,
-          borderSkipped: false,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: d.tooltip },
-        scales: {
-          x: { ticks: d.ticks, grid: { display: false } },
-          y: { ticks: d.ticks, grid: d.grid, title: { display: true, text: 'Loss %', color: d.color } },
-        },
-      },
-    });
-
     state.charts.tlMonthlyTrend = new Chart(document.getElementById('tl-monthly-trend-chart'), {
-      type: 'line',
+      type: 'bar',
       data: {
         labels: state.data.losses.monthly.labels,
-        datasets: [
-          {
-            label: 'Technical',
-            data: state.data.losses.monthly.technical,
-            borderColor: '#0EA5E9',
-            backgroundColor: 'rgba(14, 165, 233, 0.12)',
-            fill: true,
-            tension: 0.35,
-            borderWidth: 2,
-          },
-          {
-            label: 'Non-Technical',
-            data: state.data.losses.monthly.nonTechnical,
-            borderColor: '#F59E0B',
-            backgroundColor: 'rgba(245, 158, 11, 0.1)',
-            fill: true,
-            tension: 0.35,
-            borderWidth: 2,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { labels: { color: d.color } }, tooltip: d.tooltip },
-        scales: {
-          x: { ticks: d.ticks, grid: d.grid },
-          y: { ticks: d.ticks, grid: d.grid, title: { display: true, text: 'Loss %', color: d.color } },
-        },
-      },
-    });
-
-    state.charts.tlRegionLoss = new Chart(document.getElementById('tl-region-loss-chart'), {
-      type: 'bar',
-      data: {
-        labels: Object.keys(state.data.losses.regions),
         datasets: [{
-          label: 'Loss %',
-          data: Object.values(state.data.losses.regions),
-          backgroundColor: ['#38BDF8', '#818CF8', '#FB7185', '#FBBF24'],
-          borderRadius: 4,
+          label: 'Loss (%)',
+          data: state.data.losses.monthly.total,
+          backgroundColor: lossMonthlyBarColor,
+          borderRadius: 8,
           borderSkipped: false,
         }],
       },
       options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: d.tooltip },
-        scales: {
-          x: { ticks: d.ticks, grid: d.grid, title: { display: true, text: 'Loss %', color: d.color } },
-          y: { ticks: d.ticks, grid: { display: false } },
-        },
+        ...buildMonthlyLossChartOptions(d),
+        animation: { duration: 500, easing: 'easeOutQuart' },
       },
     });
 
-    // PQ gauges
-    state.charts.pqThd = makeGauge(document.getElementById('pq-thd-gauge'), 2.8, 8, '#06b6d4');
-    state.charts.pqVoltage = makeGauge(document.getElementById('pq-voltage-gauge'), 98.2, 100, '#22c55e');
-    state.charts.pqFlicker = makeGauge(document.getElementById('pq-flicker-gauge'), 0.42, 1.5, '#f59e0b');
-    state.charts.pqTransient = makeGauge(document.getElementById('pq-transient-gauge'), 3, 12, '#ef4444');
+    state.charts.tlZoneLoss = new Chart(document.getElementById('tl-zone-loss-chart'), {
+      type: 'bar',
+      plugins: [lossBarValuePlugin],
+      data: {
+        labels: Object.keys(state.data.losses.zones),
+        datasets: [{
+          label: 'Loss %',
+          data: Object.values(state.data.losses.zones),
+          backgroundColor: lossBarHighlightColors(Object.values(state.data.losses.zones)),
+          borderRadius: 4,
+          borderSkipped: false,
+        }],
+      },
+      options: buildGeoLossChartOptions(d, true),
+    });
+
+    state.charts.tlCircleLoss = new Chart(document.getElementById('tl-circle-loss-chart'), {
+      type: 'bar',
+      plugins: [lossBarValuePlugin],
+      data: {
+        labels: Object.keys(state.data.losses.circles),
+        datasets: [{
+          label: 'Loss %',
+          data: Object.values(state.data.losses.circles),
+          backgroundColor: lossBarHighlightColors(Object.values(state.data.losses.circles)),
+          borderRadius: 4,
+          borderSkipped: false,
+        }],
+      },
+      options: buildGeoLossChartOptions(d, true),
+    });
+
+    const soPq = getSoPowerQualitySnapshot(state.data);
+    state.charts.pqActive = makeGauge(document.getElementById('pq-active-gauge'), soPq.activeMw, soPq.activeMax, CHART_PRIMARY);
+    state.charts.pqReactive = makeGauge(
+      document.getElementById('pq-reactive-gauge'),
+      soPq.reactiveMvar,
+      soPq.reactiveMax,
+      CHART_TEAL
+    );
+    state.charts.pqVband = makeGauge(
+      document.getElementById('pq-vband-gauge'),
+      soPq.voltageBand,
+      100,
+      soPq.voltageBand < 96 ? CHART_DANGER : CHART_SUCCESS
+    );
+
+    // PQ gauges (Power Quality tab)
     state.charts.pqThdTab = makeGauge(document.getElementById('pq-tab-thd-gauge'), 2.8, 8, '#06b6d4');
     state.charts.pqVoltageTab = makeGauge(document.getElementById('pq-tab-voltage-gauge'), 98.2, 100, '#22c55e');
     state.charts.pqFlickerTab = makeGauge(document.getElementById('pq-tab-flicker-gauge'), 0.42, 1.5, '#f59e0b');
@@ -4345,30 +4526,27 @@
       if (el) el.textContent = val;
     };
     const total = losses.technical + losses.nonTechnical;
-    const worstFeeder = Object.entries(losses.feeders).reduce((worst, curr) => (curr[1] > worst[1] ? curr : worst), ['-', 0]);
     setText('tl-total-loss', `${total.toFixed(2)}%`);
-    setText('tl-technical-loss', `${losses.technical.toFixed(2)}%`);
-    setText('tl-nontechnical-loss', `${losses.nonTechnical.toFixed(2)}%`);
-    setText('tl-worst-feeder', worstFeeder[0]);
+    setText('tl-avail-target', `${(losses.availabilityTarget ?? 99.20).toFixed(2)}%`);
 
-    const hotspotRows = Object.entries(losses.regions)
-      .map(([region, regionLoss]) => {
-        const technical = clamp(regionLoss * rand(0.62, 0.82), 0.2, 3.0);
-        const nonTechnical = clamp(regionLoss - technical, 0.1, 2.0);
-        const totalLoss = technical + nonTechnical;
-        const priority = totalLoss > 1.6 ? 'High' : totalLoss > 1.1 ? 'Medium' : 'Low';
-        return { region, technical, nonTechnical, totalLoss, priority };
-      })
-      .sort((a, b) => b.totalLoss - a.totalLoss);
+    syncLossMonthlyChart(state.charts.tlMonthlyTrend, losses.monthly);
+    if (state.charts.tlMonthlyTrend) {
+      requestAnimationFrame(() => {
+        state.charts.tlMonthlyTrend.resize();
+        state.charts.tlMonthlyTrend.update('none');
+      });
+    }
+    syncLossGeoChart(state.charts.tlZoneLoss, losses.zones);
+    syncLossGeoChart(state.charts.tlCircleLoss, losses.circles);
 
+    const hotspotRows = (losses.hotspots || []).slice().sort((a, b) => b.loss - a.loss);
     const tbody = document.getElementById('tl-hotspots-body');
     if (tbody) {
       tbody.innerHTML = hotspotRows.map((r) => `
         <tr>
-          <td>${r.region}</td>
-          <td class="font-mono">${r.technical.toFixed(2)}%</td>
-          <td class="font-mono">${r.nonTechnical.toFixed(2)}%</td>
-          <td class="font-mono">${r.totalLoss.toFixed(2)}%</td>
+          <td>${r.zone}</td>
+          <td>${r.circle}</td>
+          <td class="font-mono">${r.loss.toFixed(2)}%</td>
           <td><span class="badge ${r.priority === 'High' ? 'badge-danger' : r.priority === 'Medium' ? 'badge-warning' : 'badge-success'}">${r.priority}</span></td>
         </tr>
       `).join('');
@@ -4637,17 +4815,15 @@
     document.getElementById('planned-outage').textContent = `${data.plannedOutage.toFixed(2)}%`;
     document.getElementById('forced-outage').textContent = `${data.forcedOutage.toFixed(2)}%`;
 
-    // Power quality
+    // Power quality (System Operation card)
     const pq = data.powerQuality;
-    document.getElementById('pq-thd-value').textContent = `${pq.thd.toFixed(1)}%`;
-    document.getElementById('pq-voltage-value').textContent = `${pq.voltage.toFixed(1)}%`;
-    document.getElementById('pq-flicker-value').textContent = pq.flicker.toFixed(2);
-    document.getElementById('pq-transient-value').textContent = pq.transients;
-
-    const compliance = pq.thd < 5 && pq.voltage > 95 && pq.flicker < 1;
-    const badge = document.getElementById('grid-compliance-badge');
-    badge.textContent = compliance ? 'Grid Code: PASS' : 'Grid Code: FAIL';
-    badge.className = `badge ${compliance ? 'pass' : 'fail'}`;
+    const soPq = getSoPowerQualitySnapshot(data);
+    const activeEl = document.getElementById('pq-active-value');
+    const reactiveEl = document.getElementById('pq-reactive-value');
+    const vbandEl = document.getElementById('pq-vband-value');
+    if (activeEl) activeEl.textContent = `${soPq.activeMw.toFixed(1)} MW`;
+    if (reactiveEl) reactiveEl.textContent = `${soPq.reactiveMvar.toFixed(1)} MVAR`;
+    if (vbandEl) vbandEl.textContent = `${soPq.voltageBand.toFixed(1)}%`;
 
     // Flashover alert count
     const highRisk = data.flashover.filter((f) => f.risk === 'high').length;
@@ -4984,42 +5160,36 @@
       }
     }
 
-    if (state.charts.tlLossMix) {
-      state.charts.tlLossMix.data.datasets[0].data = [data.losses.technical, data.losses.nonTechnical];
-      state.charts.tlLossMix.update('none');
-    }
-
-    if (state.charts.tlFeederLoss) {
-      state.charts.tlFeederLoss.data.labels = Object.keys(data.losses.feeders);
-      state.charts.tlFeederLoss.data.datasets[0].data = Object.values(data.losses.feeders);
-      state.charts.tlFeederLoss.update('none');
-    }
-
-    if (state.charts.tlMonthlyTrend) {
+    if (state.charts.tlMonthlyTrend && data.losses?.monthly) {
       const m = data.losses.monthly;
-      m.technical.push(clamp(data.losses.technical + rand(-0.08, 0.08), 2.4, 4.4));
-      m.nonTechnical.push(clamp(data.losses.nonTechnical + rand(-0.05, 0.05), 0.7, 1.8));
-      if (m.technical.length > m.labels.length) m.technical.shift();
-      if (m.nonTechnical.length > m.labels.length) m.nonTechnical.shift();
-      state.charts.tlMonthlyTrend.data.labels = m.labels;
-      state.charts.tlMonthlyTrend.data.datasets[0].data = m.technical;
-      state.charts.tlMonthlyTrend.data.datasets[1].data = m.nonTechnical;
-      state.charts.tlMonthlyTrend.update('none');
+      if (m.total.length) {
+        const i = m.total.length - 1;
+        const last = Number(m.total[i]) || (data.losses.technical + data.losses.nonTechnical);
+        m.total[i] = Number(clamp(last + rand(-0.12, 0.12), 3.5, 5.5).toFixed(1));
+      }
+      syncLossMonthlyChart(state.charts.tlMonthlyTrend, m);
     }
 
-    if (state.charts.tlRegionLoss) {
-      state.charts.tlRegionLoss.data.labels = Object.keys(data.losses.regions);
-      state.charts.tlRegionLoss.data.datasets[0].data = Object.values(data.losses.regions);
-      state.charts.tlRegionLoss.update('none');
+    if (state.charts.tlZoneLoss && data.losses?.zones) {
+      syncLossGeoChart(state.charts.tlZoneLoss, data.losses.zones);
+    }
+
+    if (state.charts.tlCircleLoss && data.losses?.circles) {
+      syncLossGeoChart(state.charts.tlCircleLoss, data.losses.circles);
     }
 
     // PQ gauges
     const pq = data.powerQuality;
+    const soPq = getSoPowerQualitySnapshot(data);
     const gauges = [
-      { chart: state.charts.pqThd, val: pq.thd, max: 8, color: pq.thd > 5 ? '#ef4444' : '#06b6d4' },
-      { chart: state.charts.pqVoltage, val: pq.voltage, max: 100, color: pq.voltage < 96 ? '#ef4444' : '#22c55e' },
-      { chart: state.charts.pqFlicker, val: pq.flicker, max: 1.5, color: pq.flicker > 0.8 ? '#ef4444' : '#f59e0b' },
-      { chart: state.charts.pqTransient, val: pq.transients, max: 12, color: pq.transients > 6 ? '#ef4444' : '#06b6d4' },
+      { chart: state.charts.pqActive, val: soPq.activeMw, max: soPq.activeMax, color: CHART_PRIMARY },
+      { chart: state.charts.pqReactive, val: soPq.reactiveMvar, max: soPq.reactiveMax, color: CHART_TEAL },
+      {
+        chart: state.charts.pqVband,
+        val: soPq.voltageBand,
+        max: 100,
+        color: soPq.voltageBand < 96 ? CHART_DANGER : CHART_SUCCESS,
+      },
       { chart: state.charts.pqThdTab, val: pq.thd, max: 8, color: pq.thd > 5 ? '#ef4444' : '#06b6d4' },
       { chart: state.charts.pqVoltageTab, val: pq.voltage, max: 100, color: pq.voltage < 96 ? '#ef4444' : '#22c55e' },
       { chart: state.charts.pqFlickerTab, val: pq.flicker, max: 1.5, color: pq.flicker > 0.8 ? '#ef4444' : '#f59e0b' },
