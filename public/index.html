@@ -980,7 +980,7 @@
           <div class="panel">
             <div class="panel-header"><h3>D1 — Grid Reliability Indices</h3></div>
             <div class="panel-body">
-              <div class="grid-5" id="reliability-kpis"></div>
+              <div class="grid-4" id="reliability-kpis"></div>
             </div>
           </div>
 
@@ -995,10 +995,6 @@
             </div>
           </div>
 
-          <div class="panel">
-            <div class="panel-header"><h3>D4 — Maintenance Cost Analytics</h3></div>
-            <div class="panel-body chart-container-lg"><canvas id="maint-cost-chart"></canvas></div>
-          </div>
         </section>
 
         <!-- GRID INTELLIGENCE (E) -->
@@ -1072,22 +1068,66 @@
             </div>
           </div>
 
+          <div class="panel page-section up-outage-panel">
+            <div class="panel-header">
+              <div>
+                <h3>Outage Summary</h3>
+                <p class="card__meta" id="up-outage-location">All Zones</p>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="kpi-grid-compact up-outage-grid">
+                <div class="kpi-card kpi-compact kpi-accent-blue up-outage-card">
+                  <p class="kpi-label">Planned Outage</p>
+                  <p class="kpi-value" id="up-outage-planned">0.12%</p>
+                  <p class="kpi-subtitle" id="up-outage-planned-hr">0.0 hr</p>
+                </div>
+                <div class="kpi-card kpi-compact kpi-accent-orange up-outage-card">
+                  <p class="kpi-label">Forced Outage</p>
+                  <p class="kpi-value" id="up-outage-forced">0.06%</p>
+                  <p class="kpi-subtitle" id="up-outage-forced-hr">0.0 hr</p>
+                </div>
+                <div class="kpi-card kpi-compact kpi-accent-red up-outage-card">
+                  <p class="kpi-label">Total Outage</p>
+                  <p class="kpi-value" id="up-outage-total">0.18%</p>
+                  <p class="kpi-subtitle" id="up-outage-total-hr">0.0 hr</p>
+                </div>
+                <div class="kpi-card kpi-compact kpi-accent-teal up-outage-card">
+                  <p class="kpi-label">30d Availability</p>
+                  <p class="kpi-value" id="up-outage-avail">99.82%</p>
+                  <p class="kpi-subtitle" id="up-outage-avail-note">Last 30 days</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="grid-2 page-section">
             <div class="panel">
-              <div class="panel-header"><h3>Daily Uptime Trend (30 Days)</h3></div>
+              <div class="panel-header">
+                <h3>Uptime trend · last 30 days</h3>
+                <span class="text-xs text-muted" id="up-trend-scope">All Zones</span>
+              </div>
               <div class="panel-body chart-container-lg"><canvas id="uptime-trend-chart"></canvas></div>
             </div>
             <div class="panel">
-              <div class="panel-header"><h3>Downtime Root Cause Split</h3></div>
-              <div class="panel-body donut-split-body">
-                <div class="donut-split-layout">
-                  <ul class="donut-split-legend" id="uptime-cause-legend" aria-label="Root cause legend"></ul>
-                  <div class="donut-split-chart-wrap">
-                    <canvas id="uptime-cause-chart" aria-label="Downtime root cause split donut"></canvas>
-                    <div class="donut-split-center" aria-hidden="true">
-                      <span>Root Cause</span>
-                      <span>Split</span>
-                    </div>
+              <div class="panel-header">
+                <h3 id="up-compare-title">Uptime Comparison</h3>
+                <span class="text-xs text-muted" id="up-compare-scope">By Zone</span>
+              </div>
+              <div class="panel-body chart-container-lg"><canvas id="uptime-compare-chart"></canvas></div>
+            </div>
+          </div>
+
+          <div class="panel page-section">
+            <div class="panel-header"><h3>Downtime Root Cause Split</h3></div>
+            <div class="panel-body donut-split-body">
+              <div class="donut-split-layout">
+                <ul class="donut-split-legend" id="uptime-cause-legend" aria-label="Root cause legend"></ul>
+                <div class="donut-split-chart-wrap">
+                  <canvas id="uptime-cause-chart" aria-label="Downtime root cause split donut"></canvas>
+                  <div class="donut-split-center" aria-hidden="true">
+                    <span>Root Cause</span>
+                    <span>Split</span>
                   </div>
                 </div>
               </div>

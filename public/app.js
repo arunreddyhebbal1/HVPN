@@ -326,6 +326,39 @@
     return gradient;
   }
 
+  function uptimeTrendBarColor(ctx) {
+    const value = Number(ctx.raw);
+    const chart = ctx.chart;
+    const data = (chart.data.datasets[0].data || []).map((v) => Number(v) || 0);
+    if (!data.length) return LOSS_MONTHLY_NORMAL;
+    const max = Math.max(...data);
+    const min = Math.min(...data);
+    const { ctx: canvas, chartArea } = chart;
+    if (max !== min && value === max) {
+      if (!chartArea) return LOSS_MONTHLY_LOW;
+      const g = canvas.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+      g.addColorStop(0, LOSS_MONTHLY_LOW_DARK);
+      g.addColorStop(0.5, LOSS_MONTHLY_LOW);
+      g.addColorStop(1, LOSS_MONTHLY_LOW_LIGHT);
+      return g;
+    }
+    if (max !== min && value === min) {
+      if (!chartArea) return LOSS_MONTHLY_HIGH;
+      const g = canvas.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+      g.addColorStop(0, LOSS_MONTHLY_HIGH_DARK);
+      g.addColorStop(0.5, LOSS_MONTHLY_HIGH);
+      g.addColorStop(1, LOSS_MONTHLY_HIGH_LIGHT);
+      return g;
+    }
+    if (!chartArea) return LOSS_MONTHLY_NORMAL;
+    const gradient = canvas.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+    gradient.addColorStop(0, '#4338ca');
+    gradient.addColorStop(0.35, '#6d5ef5');
+    gradient.addColorStop(0.70, '#4f8df8');
+    gradient.addColorStop(1, '#22d3c5');
+    return gradient;
+  }
+
   const monthlyLossDataLabelsPlugin = {
     id: 'monthlyLossDataLabels',
     afterDatasetsDraw(chart) {
@@ -833,25 +866,10 @@
       applyTimeFilterToChartScales(state.charts.pqTrend, filter, animate);
     }
 
-    if (state.charts.maintCost) {
-      const mc = data.maintCost;
-      state.charts.maintCost.data.labels = loadSeries.labels;
-      state.charts.maintCost.data.datasets[0].data = resampleSeries(mc.preventive, filter);
-      state.charts.maintCost.data.datasets[1].data = resampleSeries(mc.corrective, filter);
-      state.charts.maintCost.data.datasets[2].data = resampleSeries(mc.emergency, filter);
-      applyTimeFilterToChartScales(state.charts.maintCost, filter, animate);
-    }
-
     if (state.charts.lostLoad) {
       state.charts.lostLoad.data.labels = loadSeries.labels;
       state.charts.lostLoad.data.datasets[0].data = resampleSeries(data.lostLoad.monthly, filter);
       applyTimeFilterToChartScales(state.charts.lostLoad, filter, animate);
-    }
-
-    if (state.charts.uptimeTrend) {
-      state.charts.uptimeTrend.data.labels = loadSeries.labels;
-      state.charts.uptimeTrend.data.datasets[0].data = resampleSeries(data.uptime.dailyPct, filter);
-      applyTimeFilterToChartScales(state.charts.uptimeTrend, filter, animate);
     }
 
     document.querySelectorAll('.chart-time-filter').forEach((sel) => {
@@ -1243,11 +1261,8 @@
         saidi: 1.42, saifi: 0.82, maifi: 0.31, mtbf: 4280, mttr: 3.6,
       },
       utilization: [
-        { asset: 'TX-01', load: 78, capacity: 100 },
-        { asset: 'TX-02', load: 92, capacity: 100 },
-        { asset: 'Line L1', load: 65, capacity: 100 },
-        { asset: 'CB-101', load: 45, capacity: 100 },
-        { asset: 'Reactor R1', load: 88, capacity: 100 },
+        { asset: 'Transformers', load: 85, capacity: 100 },
+        { asset: 'Lines', load: 65, capacity: 100 },
       ],
       aging: [
         { range: '0–5 yr', count: 12 },
@@ -2213,10 +2228,22 @@
     tafmPulseRaf = requestAnimationFrame(tick);
   }
 
+  const OA_CIRCLE_PALETTE = {
+    shutdown: '#5141C3',
+    breakdown: '#4E9BFA',
+    tripping: '#76E2E1',
+  };
+
   const OA_CIRCLE_COLORS = {
-    shutdown: { top: '#60A5FA', bottom: '#1D4ED8', solid: '#3B82F6' },
-    breakdown: { top: '#F87171', bottom: '#991B1B', solid: '#DC2626' },
-    tripping: { top: '#FBBF24', bottom: '#B45309', solid: '#F59E0B' },
+    shutdown: { top: '#6B5CE7', bottom: '#3D31A8', solid: OA_CIRCLE_PALETTE.shutdown },
+    breakdown: { top: '#7CB8FF', bottom: '#2563EB', solid: OA_CIRCLE_PALETTE.breakdown },
+    tripping: { top: '#A8F0EF', bottom: '#1EC2C4', solid: OA_CIRCLE_PALETTE.tripping },
+  };
+
+  const OA_CIRCLE_HOVER_COLORS = {
+    shutdown: { top: '#8578F0', bottom: '#5141C3', solid: '#6B5CE7' },
+    breakdown: { top: '#93C5FD', bottom: '#3B82F6', solid: '#60B5FF' },
+    tripping: { top: '#B8F5F4', bottom: '#4DD4D4', solid: '#8EEBEA' },
   };
 
   function getOaCircleSeries(byCircle) {
@@ -2382,10 +2409,10 @@
 
         if (isHighest) {
           ctx.save();
-          ctx.shadowColor = `rgba(59, 130, 246, ${0.45 + pulse * 0.25})`;
+          ctx.shadowColor = `rgba(81, 65, 195, ${0.38 + pulse * 0.22})`;
           ctx.shadowBlur = 18 + pulse * 8;
           ctx.shadowOffsetY = 4;
-          ctx.strokeStyle = `rgba(96, 165, 250, ${0.85 + pulse * 0.15})`;
+          ctx.strokeStyle = `rgba(118, 226, 225, ${0.82 + pulse * 0.12})`;
           ctx.lineWidth = 2.5;
           roundRectPath(x - width / 2 - 4, topY - 4, width + 8, Math.max(baseY - topY, 1) + 8, 10);
           ctx.stroke();
@@ -2400,8 +2427,8 @@
           let by = topY - 38;
           bx = Math.max(chartArea.left + 2, Math.min(bx, chartArea.right - bw - 2));
           by = Math.max(chartArea.top + 2, by);
-          ctx.fillStyle = 'rgba(37, 99, 235, 0.95)';
-          ctx.shadowColor = 'rgba(37, 99, 235, 0.35)';
+          ctx.fillStyle = 'rgba(81, 65, 195, 0.95)';
+          ctx.shadowColor = 'rgba(81, 65, 195, 0.35)';
           ctx.shadowBlur = 10;
           roundRectPath(bx, by, bw, bh, 9);
           ctx.fill();
@@ -2483,11 +2510,7 @@
             label: 'Shutdown',
             data: series.shutdown.slice(),
             backgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_COLORS.shutdown),
-            hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, {
-              top: '#93C5FD',
-              bottom: '#2563EB',
-              solid: '#60A5FA',
-            }),
+            hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_HOVER_COLORS.shutdown),
             borderColor: 'transparent',
             borderWidth: 0,
             borderSkipped: false,
@@ -2499,11 +2522,7 @@
             label: 'Breakdown',
             data: series.breakdown.slice(),
             backgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_COLORS.breakdown),
-            hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, {
-              top: '#FCA5A5',
-              bottom: '#B91C1C',
-              solid: '#F87171',
-            }),
+            hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_HOVER_COLORS.breakdown),
             borderColor: 'transparent',
             borderWidth: 0,
             borderSkipped: false,
@@ -2515,11 +2534,7 @@
             label: 'Tripping',
             data: series.tripping.slice(),
             backgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_COLORS.tripping),
-            hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, {
-              top: '#FCD34D',
-              bottom: '#D97706',
-              solid: '#FBBF24',
-            }),
+            hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_HOVER_COLORS.tripping),
             borderColor: 'transparent',
             borderWidth: 0,
             borderSkipped: false,
@@ -2560,6 +2575,19 @@
               padding: 16,
               boxWidth: 10,
               boxHeight: 10,
+              generateLabels(chart) {
+                const defaults = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                const solids = [
+                  OA_CIRCLE_PALETTE.shutdown,
+                  OA_CIRCLE_PALETTE.breakdown,
+                  OA_CIRCLE_PALETTE.tripping,
+                ];
+                return defaults.map((item, i) => ({
+                  ...item,
+                  fillStyle: solids[i] || item.fillStyle,
+                  strokeStyle: solids[i] || item.strokeStyle,
+                }));
+              },
             },
           },
           tooltip: {
@@ -3346,7 +3374,9 @@
     });
 
     // Utilization chart
-    state.charts.utilization = new Chart(document.getElementById('utilization-chart'), {
+    const utilizationCanvas = document.getElementById('utilization-chart');
+    if (utilizationCanvas) {
+      state.charts.utilization = new Chart(utilizationCanvas, {
       type: 'bar',
       data: {
         labels: state.data.utilization.map((u) => u.asset),
@@ -3369,6 +3399,7 @@
         },
       },
     });
+    }
 
     // Aging chart
     state.charts.aging = new Chart(document.getElementById('aging-chart'), {
@@ -3389,30 +3420,6 @@
         scales: {
           x: { ticks: d.ticks, grid: { display: false } },
           y: { ticks: d.ticks, grid: d.grid },
-        },
-      },
-    });
-
-    // Maintenance cost chart
-    const mc = state.data.maintCost;
-    state.charts.maintCost = new Chart(document.getElementById('maint-cost-chart'), {
-      type: 'line',
-      data: {
-        labels: mc.labels,
-        datasets: [
-          { label: 'Preventive', data: mc.preventive, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.35, borderWidth: 2 },
-          { label: 'Corrective', data: mc.corrective, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.35, borderWidth: 2 },
-          { label: 'Emergency', data: mc.emergency, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.35, borderWidth: 2 },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: { legend: { labels: { color: d.color } }, tooltip: d.tooltip },
-        scales: {
-          x: { ticks: d.ticks, grid: d.grid },
-          y: { ticks: d.ticks, grid: d.grid, title: { display: true, text: 'Cost (₹ Lakhs)', color: d.color } },
         },
       },
     });
@@ -3445,32 +3452,83 @@
     });
 
     // Uptime analytics
-    const uptimeLabels = Array.from({ length: 30 }, (_, i) => `D${i + 1}`);
-    state.charts.uptimeTrend = new Chart(document.getElementById('uptime-trend-chart'), {
-      type: 'line',
-      data: {
-        labels: uptimeLabels,
-        datasets: [{
-          label: 'Uptime %',
-          data: state.data.uptime.dailyPct,
-          borderColor: CHART_SUCCESS,
-          backgroundColor: 'rgba(0, 168, 112, 0.12)',
-          fill: true,
-          tension: 0.35,
-          pointRadius: 0,
-          borderWidth: 2,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: d.tooltip },
-        scales: {
-          x: { ticks: { ...d.ticks, maxTicksLimit: 10 }, grid: d.grid },
-          y: { min: 99.7, max: 100, ticks: d.ticks, grid: d.grid },
+    const uptimeLabels = getUptimeTrendLabels();
+    const uptimeDaily = buildUptimeDailySeries();
+    state.data.uptime.dailyPct = uptimeDaily;
+    const uptimeTrendCanvas = document.getElementById('uptime-trend-chart');
+    if (uptimeTrendCanvas) {
+      state.charts.uptimeTrend = new Chart(uptimeTrendCanvas, {
+        type: 'bar',
+        data: {
+          labels: uptimeLabels,
+          datasets: [{
+            label: 'Uptime %',
+            data: uptimeDaily,
+            backgroundColor: uptimeTrendBarColor,
+            borderRadius: 6,
+            borderSkipped: false,
+            maxBarThickness: 16,
+            categoryPercentage: 0.94,
+            barPercentage: 0.92,
+          }],
         },
-      },
-    });
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: d.tooltip },
+          scales: {
+            x: {
+              ticks: {
+                ...d.ticks,
+                autoSkip: false,
+                maxRotation: 0,
+                minRotation: 0,
+                callback(value, index) {
+                  return index % 4 === 0 ? this.getLabelForValue(value) : '';
+                },
+              },
+              grid: { display: false },
+            },
+            y: { min: 99.65, max: 100, ticks: d.ticks, grid: d.grid },
+          },
+        },
+      });
+    }
+
+    const compareSeries = getUptimeComparisonSeries();
+    const uptimeCompareCanvas = document.getElementById('uptime-compare-chart');
+    if (uptimeCompareCanvas) {
+      state.charts.uptimeCompare = new Chart(uptimeCompareCanvas, {
+        type: 'bar',
+        data: {
+          labels: compareSeries.labels,
+          datasets: [{
+            label: '30d Uptime %',
+            data: compareSeries.values,
+            backgroundColor: compareSeries.values.map((_, i) =>
+              i === compareSeries.selectedIndex ? CHART_PRIMARY : 'rgba(14, 165, 233, 0.45)'
+            ),
+            borderRadius: 6,
+            borderSkipped: false,
+            maxBarThickness: 42,
+            categoryPercentage: 0.62,
+            barPercentage: 0.78,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: d.tooltip },
+          scales: {
+            x: {
+              ticks: { ...d.ticks, maxRotation: 35, minRotation: 0, autoSkip: true, maxTicksLimit: 8 },
+              grid: { display: false },
+            },
+            y: { min: 99.65, max: 100, ticks: d.ticks, grid: d.grid },
+          },
+        },
+      });
+    }
 
     state.charts.uptimeCause = new Chart(document.getElementById('uptime-cause-chart'), {
       type: 'doughnut',
@@ -4730,6 +4788,157 @@
     return 'All Zones';
   }
 
+  function getUptimeTrendLabels() {
+    const now = new Date();
+    return Array.from({ length: 30 }, (_, i) => {
+      const d = new Date(now);
+      d.setDate(d.getDate() - (29 - i));
+      return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    });
+  }
+
+  function buildUptimeDailySeries() {
+    const seed = hashFilterSeed();
+    return Array.from({ length: 30 }, (_, i) => {
+      const dip = i >= 12 && i <= 20 ? 0.14 : 0;
+      const wave = Math.sin((i + (seed % 5)) / 3.5) * 0.08;
+      const noise = (seededUnit(seed, i + 140) - 0.5) * 0.06;
+      return Number(clamp(99.86 + wave + noise - dip, 99.68, 100).toFixed(3));
+    });
+  }
+
+  function getUptimeComparisonSeries() {
+    const seed = hashFilterSeed();
+    let level = 'Zone';
+    let items = [];
+
+    if (!isFilterAll(state.filters.substation)) {
+      level = 'Sub Station';
+      items = getFilteredSubstationEntries(getSubstationsForFilter()).map(([key, ss]) => ({
+        key,
+        label: getSubstationLabel(ss),
+        selected: key === state.filters.substation,
+      }));
+    } else if (!isFilterAll(state.filters.division)) {
+      level = 'Sub Station';
+      items = getFilteredSubstationEntries(getSubstationsForFilter()).map(([key, ss]) => ({
+        key,
+        label: getSubstationLabel(ss),
+        selected: false,
+      }));
+    } else if (!isFilterAll(state.filters.circle)) {
+      level = 'Division';
+      const divisions = getDivisionsForFilter();
+      items = Object.entries(divisions).map(([key, div]) => ({
+        key,
+        label: div.label || key,
+        selected: key === state.filters.division,
+      }));
+    } else if (!isFilterAll(state.filters.zone)) {
+      level = 'Circle';
+      const circles = getCirclesForFilter();
+      items = Object.entries(circles).map(([key, circle]) => ({
+        key,
+        label: circle.label || key,
+        selected: key === state.filters.circle,
+      }));
+    } else {
+      items = Object.entries(FILTER_HIERARCHY)
+        .filter(([zoneKey, zone]) => !isOtherHierarchyLabel(zone?.label) && !isOtherHierarchyLabel(zoneKey))
+        .map(([key, zone]) => ({
+          key,
+          label: zone.label || key,
+          selected: key === state.filters.zone,
+        }));
+    }
+
+    if (!items.length) {
+      items = [{ key: 'all', label: 'All Zones', selected: true }];
+    }
+
+    const values = items.map((item, i) =>
+      Number(clamp(99.72 + seededUnit(seed, i + 90 + item.key.length) * 0.26, 99.68, 99.99).toFixed(3))
+    );
+
+    let selectedIndex = items.findIndex((item) => item.selected);
+    if (selectedIndex < 0 && !isFilterAll(state.filters.substation)) {
+      selectedIndex = items.findIndex((item) => item.key === state.filters.substation);
+    }
+
+    return {
+      level,
+      labels: items.map((item) => item.label),
+      values,
+      selectedIndex,
+    };
+  }
+
+  function getUptimeOutageSnapshot() {
+    const seed = hashFilterSeed();
+    const plannedPct = clamp(0.08 + seededUnit(seed, 31) * 0.18, 0.05, 0.35);
+    const forcedPct = clamp(0.04 + seededUnit(seed, 32) * 0.14, 0.02, 0.28);
+    const totalPct = plannedPct + forcedPct;
+    const monthHours = 30 * 24;
+    const plannedHr = (plannedPct / 100) * monthHours;
+    const forcedHr = (forcedPct / 100) * monthHours;
+    const totalHr = plannedHr + forcedHr;
+    const availability = clamp(100 - totalPct, 99.5, 100);
+
+    return {
+      location: getSelectedLocationLabel(),
+      plannedPct,
+      forcedPct,
+      totalPct,
+      plannedHr,
+      forcedHr,
+      totalHr,
+      availability,
+    };
+  }
+
+  function syncUptimeCharts({ rebuildTrend = false } = {}) {
+    if (rebuildTrend || !state.data.uptime.dailyPct?.length) {
+      state.data.uptime.dailyPct = buildUptimeDailySeries();
+    }
+    const trend = state.data.uptime.dailyPct;
+    const compare = getUptimeComparisonSeries();
+    const outage = getUptimeOutageSnapshot();
+    state.data.uptime.pct30d = trend.reduce((s, v) => s + v, 0) / trend.length;
+
+    if (state.charts.uptimeTrend) {
+      state.charts.uptimeTrend.data.labels = getUptimeTrendLabels();
+      state.charts.uptimeTrend.data.datasets[0].data = trend;
+      state.charts.uptimeTrend.data.datasets[0].backgroundColor = uptimeTrendBarColor;
+      state.charts.uptimeTrend.update('none');
+    }
+
+    if (state.charts.uptimeCompare) {
+      state.charts.uptimeCompare.data.labels = compare.labels;
+      state.charts.uptimeCompare.data.datasets[0].data = compare.values;
+      state.charts.uptimeCompare.data.datasets[0].backgroundColor = compare.values.map((_, i) =>
+        i === compare.selectedIndex ? CHART_PRIMARY : 'rgba(14, 165, 233, 0.45)'
+      );
+      state.charts.uptimeCompare.update('none');
+    }
+
+    const setText = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val;
+    };
+    setText('up-trend-scope', outage.location);
+    setText('up-compare-scope', `By ${compare.level}`);
+    setText('up-compare-title', `${compare.level} Uptime Comparison`);
+    setText('up-outage-location', outage.location);
+    setText('up-outage-planned', `${outage.plannedPct.toFixed(2)}%`);
+    setText('up-outage-forced', `${outage.forcedPct.toFixed(2)}%`);
+    setText('up-outage-total', `${outage.totalPct.toFixed(2)}%`);
+    setText('up-outage-planned-hr', `${outage.plannedHr.toFixed(1)} hr`);
+    setText('up-outage-forced-hr', `${outage.forcedHr.toFixed(1)} hr`);
+    setText('up-outage-total-hr', `${outage.totalHr.toFixed(1)} hr`);
+    setText('up-outage-avail', `${outage.availability.toFixed(2)}%`);
+    setText('up-outage-avail-note', 'Last 30 days');
+  }
+
   function getFilterLoadScaleMw() {
     const seed = hashFilterSeed();
     let scale = 22 + (seed % 8);
@@ -5529,7 +5738,6 @@
     const kpis = [
       { label: 'SAIDI', value: rel.saidi.toFixed(2), unit: 'min/customer' },
       { label: 'SAIFI', value: rel.saifi.toFixed(2), unit: 'interruptions' },
-      { label: 'MAIFI', value: rel.maifi.toFixed(2), unit: 'momentary' },
       { label: 'MTBF', value: rel.mtbf.toLocaleString(), unit: 'hours' },
       { label: 'MTTR', value: rel.mttr.toFixed(1), unit: 'hours' },
     ];
@@ -5603,6 +5811,7 @@
 
   function renderUptimeAnalytics() {
     const u = state.data.uptime;
+    syncUptimeCharts({ rebuildTrend: true });
     const pctEl = document.getElementById('up-uptime-pct');
     const incidentsEl = document.getElementById('up-incidents');
     const mttrEl = document.getElementById('up-mttr');
@@ -5763,7 +5972,8 @@
     }
 
     if (state.charts.uptimeTrend) {
-      data.uptime.dailyPct = data.uptime.dailyPct.map((v) => clamp(v + rand(-0.01, 0.01), 99.75, 100));
+      data.uptime.dailyPct = data.uptime.dailyPct.map((v) => clamp(v + rand(-0.01, 0.01), 99.7, 100));
+      syncUptimeCharts();
     }
 
     if (state.charts.uptimeCause) {
@@ -6379,6 +6589,7 @@
     initMockData();
     updateDOM();
     refreshLoadProfileWidgets({ showLoading: true, animateForecast: true });
+    renderUptimeAnalytics();
     scheduleChartRefresh();
   }
 
@@ -6401,6 +6612,7 @@
     initMockData();
     updateDOM();
     refreshLoadProfileWidgets({ showLoading: true, animateForecast: true });
+    renderUptimeAnalytics();
     scheduleChartRefresh();
   }
 
