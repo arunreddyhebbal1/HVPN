@@ -39,6 +39,9 @@
     execTrippingLevel: 'zone',
     execCategoryFilter: { shutdown: true, breakdown: true, tripping: true },
     execTrippingDrill: { zoneKey: null, circleKey: null, zoneLabel: null, circleLabel: null },
+    soAvailGranularity: 'hourly',
+    soAvailMetric: 'availability',
+    soAvailSelectedIndex: null,
     lastUpdateAt: Date.now(),
   };
 
@@ -1159,30 +1162,451 @@
     return result;
   }
 
-  function getAvailabilityChartLabels(count) {
-    const now = new Date();
-    return Array.from({ length: count }, (_, i) => {
-      const d = new Date(now);
-      d.setHours(d.getHours() - (count - 1 - i));
-      return `${String(d.getHours()).padStart(2, '0')}:00`;
+  const SO_HERC_TARGET = 98.5;
+  const OUTAGE_CLASS_PALETTE = {
+    shutdown: '#7E57C2',
+    breakdown: '#42A5F5',
+    tripping: '#26C6DA',
+  };
+  const SO_AVAIL_LINE_COLOR = '#10B981';
+  const SO_AVAIL_TARGET_COLOR = '#F59E0B';
+  const SO_AVAIL_PLANNED_COLOR = OUTAGE_CLASS_PALETTE.shutdown;
+  const SO_AVAIL_FORCED_COLOR = OUTAGE_CLASS_PALETTE.tripping;
+  const SO_AVAIL_PLANNED_FILL = 'rgba(126, 87, 194, 0.55)';
+  const SO_AVAIL_FORCED_FILL = 'rgba(38, 198, 218, 0.55)';
+  const SO_MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const SO_AVAIL_GRANULARITY_META = {
+    hourly: {
+      subtitle: 'Hourly availability tracking against HERC regulatory target (98.5%)',
+      xTitle: 'Hour',
+      maxRotation: 45,
+      minRotation: 45,
+      autoSkip: false,
+      maxBarThickness: 10,
+      layoutPaddingBottom: 55,
+      tickFontSize: 10,
+    },
+    daily: {
+      subtitle: 'Daily availability tracking against HERC regulatory target (98.5%)',
+      xTitle: 'Day',
+      maxRotation: 45,
+      minRotation: 45,
+      autoSkip: false,
+      maxBarThickness: 8,
+      layoutPaddingBottom: 75,
+      tickFontSize: 10,
+    },
+    monthly: {
+      subtitle: 'Monthly availability tracking against HERC regulatory target (98.5%)',
+      xTitle: 'Month',
+      maxTicksLimit: 12,
+      maxRotation: 0,
+      minRotation: 0,
+      autoSkip: false,
+      maxBarThickness: 28,
+      layoutPaddingBottom: 16,
+      tickFontSize: 11,
+    },
+  };
+
+  function getSoHourlyAvailabilityLabels() {
+    return Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
+  }
+
+  function getSoDailyAvailabilityLabels(referenceDate = new Date()) {
+    const year = referenceDate.getFullYear();
+    const month = referenceDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    return Array.from({ length: daysInMonth }, (_, i) => {
+      const d = new Date(year, month, i + 1);
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
     });
   }
 
-  function syncAvailabilityChart(animate) {
-    const chart = state.charts.availSpark;
-    if (!chart) return;
-    const count = 24;
-    const hist = state.data.availabilityHistory.slice(-count);
-    while (hist.length < count) {
-      hist.unshift({ planned: 0.1, forced: 0.05 });
+  function getSoMonthlyAvailabilityLabels() {
+    return SO_MONTH_LABELS.slice();
+  }
+
+  function updateSoAvailabilitySubtitle(granularity = state.soAvailGranularity) {
+    const meta = SO_AVAIL_GRANULARITY_META[granularity] || SO_AVAIL_GRANULARITY_META.hourly;
+    const el = document.getElementById('so-avail-subtitle');
+    if (el) el.textContent = meta.subtitle;
+  }
+
+  function getSoAvailabilityLayoutPadding(granularity = state.soAvailGranularity) {
+    const meta = SO_AVAIL_GRANULARITY_META[granularity] || SO_AVAIL_GRANULARITY_META.hourly;
+    return {
+      top: 8,
+      right: 8,
+      left: 4,
+      bottom: meta.layoutPaddingBottom ?? 8,
+    };
+  }
+
+  function applySoAvailabilityChartLayout(granularity = state.soAvailGranularity) {
+    const wrap = document.querySelector('#view-system-operation .so-avail-chart-wrap');
+    if (!wrap) return;
+    wrap.classList.toggle('so-avail-chart-wrap--daily', granularity === 'daily');
+    wrap.classList.toggle('so-avail-chart-wrap--hourly', granularity === 'hourly');
+    wrap.classList.toggle('so-avail-chart-wrap--monthly', granularity === 'monthly');
+  }
+
+  function getSoAvailabilityXAxisOptions(granularity) {
+    const d = chartDefaults();
+    const meta = SO_AVAIL_GRANULARITY_META[granularity] || SO_AVAIL_GRANULARITY_META.hourly;
+    const ticks = {
+      ...d.ticks,
+      font: { size: meta.tickFontSize ?? 11, family: 'Inter, system-ui, sans-serif' },
+      maxRotation: meta.maxRotation,
+      minRotation: meta.minRotation ?? meta.maxRotation,
+      autoSkip: meta.autoSkip,
+      padding: (granularity === 'daily' || granularity === 'hourly') ? 6 : 4,
+    };
+    if (meta.maxTicksLimit != null) ticks.maxTicksLimit = meta.maxTicksLimit;
+    return {
+      stacked: true,
+      grid: { display: false },
+      border: { display: false },
+      title: {
+        display: true,
+        text: meta.xTitle,
+        color: d.color,
+        font: { size: 11 },
+      },
+      ticks,
+    };
+  }
+
+  function buildAvailabilityHistoryPoint(planned, forced) {
+    const p = planned != null ? Number(planned) : rand(0.05, 0.2);
+    const f = forced != null ? Number(forced) : rand(0.02, 0.12);
+    const availability = clamp(100 - p - f, 97.2, 99.98);
+    return {
+      planned: p,
+      forced: f,
+      availability,
+      plannedHr: Number((p * 7.44).toFixed(1)),
+      forcedHr: Number((f * 7.44).toFixed(1)),
+    };
+  }
+
+  function normalizeAvailabilityPoint(h) {
+    if (!h) return buildAvailabilityHistoryPoint();
+    if (h.availability != null) {
+      return {
+        planned: Number(h.planned) || 0,
+        forced: Number(h.forced) || 0,
+        availability: Number(h.availability),
+        plannedHr: h.plannedHr != null ? Number(h.plannedHr) : Number(((h.planned || 0) * 7.44).toFixed(1)),
+        forcedHr: h.forcedHr != null ? Number(h.forcedHr) : Number(((h.forced || 0) * 7.44).toFixed(1)),
+      };
     }
-    chart.data.labels = getAvailabilityChartLabels(count);
-    chart.data.datasets[0].data = hist.map((h) => h.planned);
-    chart.data.datasets[1].data = hist.map((h) => h.forced);
-    const maxVal = Math.max(...hist.map((h) => h.planned + h.forced), 0.12);
-    chart.options.scales.y.suggestedMax = Math.ceil(maxVal * 20) / 20 + 0.05;
-    if (chart.options.scales.y.grid) chart.options.scales.y.grid.display = false;
+    return buildAvailabilityHistoryPoint(h.planned, h.forced);
+  }
+
+  function getSoAvailabilitySeries(granularity = state.soAvailGranularity) {
+    const points = (state.data?.availabilityHistory || []).map(normalizeAvailabilityPoint);
+    const now = new Date();
+    const seed = hashFilterSeed();
+
+    if (granularity === 'hourly') {
+      const labels = getSoHourlyAvailabilityLabels();
+      const hist = points.slice(-labels.length);
+      const slice = labels.map((_, i) => {
+        if (hist[i]) return normalizeAvailabilityPoint(hist[i]);
+        return buildAvailabilityHistoryPoint(
+          0.05 + seededUnit(seed, i + 1) * 0.15,
+          0.02 + seededUnit(seed, i + 25) * 0.1
+        );
+      });
+      return {
+        labels,
+        points: slice,
+        availability: slice.map((p) => p.availability),
+        planned: slice.map((p) => p.planned),
+        forced: slice.map((p) => p.forced),
+        plannedHr: slice.map((p) => p.plannedHr),
+        forcedHr: slice.map((p) => p.forcedHr),
+      };
+    }
+
+    if (granularity === 'daily') {
+      const labels = getSoDailyAvailabilityLabels(now);
+      const slice = labels.map((_, i) => buildAvailabilityHistoryPoint(
+        0.08 + seededUnit(seed, i + 1) * 0.12,
+        0.04 + seededUnit(seed, i + 31) * 0.08
+      ));
+      return {
+        labels,
+        points: slice,
+        availability: slice.map((p) => p.availability),
+        planned: slice.map((p) => p.planned),
+        forced: slice.map((p) => p.forced),
+        plannedHr: slice.map((p) => p.plannedHr),
+        forcedHr: slice.map((p) => p.forcedHr),
+      };
+    }
+
+    const labels = getSoMonthlyAvailabilityLabels();
+    const monthly = state.data?.losses?.monthly;
+    const slice = labels.map((_, i) => {
+      const loss = Number(monthly?.total?.[i]) || (4.0 + seededUnit(seed, i + 50) * 1.5);
+      return buildAvailabilityHistoryPoint(loss * 0.35 / 100, loss * 0.65 / 100);
+    });
+    return {
+      labels,
+      points: slice,
+      availability: slice.map((p) => p.availability),
+      planned: slice.map((p) => p.planned),
+      forced: slice.map((p) => p.forced),
+      plannedHr: slice.map((p) => p.plannedHr),
+      forcedHr: slice.map((p) => p.forcedHr),
+    };
+  }
+
+  const soAvailThresholdPlugin = {
+    id: 'soAvailThreshold',
+    beforeDatasetsDraw(chart) {
+      if (chart.canvas?.id !== 'so-availability-chart') return;
+      if (state.soAvailMetric !== 'availability') return;
+      const { ctx, chartArea } = chart;
+      const yScale = chart.scales.y;
+      if (!yScale || !chartArea) return;
+      const targetY = yScale.getPixelForValue(SO_HERC_TARGET);
+      const bottomY = yScale.getPixelForValue(yScale.min);
+      ctx.save();
+      ctx.fillStyle = isDark() ? 'rgba(239, 68, 68, 0.09)' : 'rgba(239, 68, 68, 0.06)';
+      ctx.fillRect(chartArea.left, targetY, chartArea.right - chartArea.left, bottomY - targetY);
+      ctx.restore();
+    },
+  };
+
+  function updateSoAvailabilityKpis(series) {
+    const latest = series.points[series.points.length - 1] || buildAvailabilityHistoryPoint();
+    const loss = latest.planned + latest.forced;
+    const currentEl = document.getElementById('so-avail-current');
+    const lossEl = document.getElementById('so-avail-loss');
+    const targetEl = document.getElementById('so-avail-target-kpi');
+    if (targetEl) targetEl.textContent = `${SO_HERC_TARGET.toFixed(2)}%`;
+    if (currentEl) {
+      currentEl.textContent = `${latest.availability.toFixed(2)}%`;
+      currentEl.classList.toggle('is-good', latest.availability >= SO_HERC_TARGET);
+      currentEl.classList.toggle('is-bad', latest.availability < SO_HERC_TARGET);
+    }
+    if (lossEl) lossEl.textContent = `${loss.toFixed(2)}%`;
+  }
+
+  function renderZoneCircleLossForAvailPoint(pointIndex) {
+    const losses = state.data?.losses;
+    if (!losses) return;
+    const titleEl = document.getElementById('tl-zone-loss-title');
+    if (pointIndex == null || pointIndex < 0) {
+      if (titleEl) titleEl.textContent = 'Zone & Circle Loss';
+      renderZoneCircleLoss(losses);
+      return;
+    }
+    const series = getSoAvailabilitySeries();
+    const point = series.points[pointIndex];
+    const label = series.labels[pointIndex];
+    if (!point) {
+      renderZoneCircleLoss(losses);
+      return;
+    }
+    const severity = clamp((point.planned + point.forced) / 0.18, 0.75, 1.35);
+    const scaleMap = (map) => {
+      const scaled = {};
+      Object.entries(map || {}).forEach(([k, v]) => {
+        scaled[k] = clamp(Number(v) * severity, 0.1, 12);
+      });
+      return scaled;
+    };
+    renderZoneCircleLoss({
+      ...losses,
+      zones: scaleMap(losses.zones),
+      circles: scaleMap(losses.circles),
+    });
+    if (titleEl) titleEl.textContent = `Zone & Circle Loss · ${label}`;
+  }
+
+  function syncSoAvailabilityChart(animate = false) {
+    const chart = state.charts.soAvailability || state.charts.availSpark;
+    if (!chart) return;
+    const granularity = state.soAvailGranularity || 'hourly';
+    const granMeta = SO_AVAIL_GRANULARITY_META[granularity] || SO_AVAIL_GRANULARITY_META.hourly;
+    const series = getSoAvailabilitySeries();
+    state._lastSoAvailSeries = series;
+    updateSoAvailabilityKpis(series);
+    updateSoAvailabilitySubtitle(granularity);
+
+    const targetLine = series.labels.map(() => SO_HERC_TARGET);
+    const metric = state.soAvailMetric || 'availability';
+    const d = chartDefaults();
+    const barThickness = granMeta.maxBarThickness;
+    const barSizing = granularity === 'daily'
+      ? { categoryPercentage: 0.92, barPercentage: 0.98 }
+      : granularity === 'hourly'
+        ? { categoryPercentage: 0.9, barPercentage: 0.95 }
+        : { categoryPercentage: 0.8, barPercentage: 0.9 };
+
+    if (metric === 'outage-hours') {
+      chart.data.labels = series.labels;
+      chart.data.datasets = [
+        {
+          type: 'bar',
+          label: 'Planned Outage',
+          data: series.plannedHr,
+          backgroundColor: SO_AVAIL_PLANNED_COLOR,
+          borderRadius: 4,
+          stack: 'hours',
+          maxBarThickness: barThickness,
+          ...barSizing,
+          order: 2,
+        },
+        {
+          type: 'bar',
+          label: 'Forced Outage',
+          data: series.forcedHr,
+          backgroundColor: SO_AVAIL_FORCED_COLOR,
+          borderRadius: 4,
+          stack: 'hours',
+          maxBarThickness: barThickness,
+          ...barSizing,
+          order: 3,
+        },
+      ];
+      chart.options.scales.y = {
+        min: 0,
+        grace: '8%',
+        ticks: { ...d.ticks, callback(v) { return `${v}h`; } },
+        grid: d.grid,
+        title: { display: true, text: 'Outage hours', color: d.color, font: { size: 11 } },
+      };
+      if (chart.options.scales.y1) chart.options.scales.y1.display = false;
+    } else {
+      chart.data.labels = series.labels;
+      chart.data.datasets = [
+        {
+          type: 'bar',
+          label: 'Planned Outage',
+          data: series.planned,
+          backgroundColor: SO_AVAIL_PLANNED_FILL,
+          borderRadius: 3,
+          stack: 'outage',
+          maxBarThickness: barThickness,
+          ...barSizing,
+          yAxisID: 'y1',
+          order: 4,
+        },
+        {
+          type: 'bar',
+          label: 'Forced Outage',
+          data: series.forced,
+          backgroundColor: SO_AVAIL_FORCED_FILL,
+          borderRadius: 3,
+          stack: 'outage',
+          maxBarThickness: barThickness,
+          ...barSizing,
+          yAxisID: 'y1',
+          order: 5,
+        },
+        {
+          type: 'line',
+          label: 'Actual Availability %',
+          data: series.availability,
+          borderColor: SO_AVAIL_LINE_COLOR,
+          backgroundColor: 'rgba(16, 185, 129, 0.12)',
+          fill: true,
+          tension: 0.42,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          borderWidth: 2.5,
+          yAxisID: 'y',
+          order: 1,
+        },
+        {
+          type: 'line',
+          label: 'HERC Target',
+          data: targetLine,
+          borderColor: SO_AVAIL_TARGET_COLOR,
+          borderDash: [6, 4],
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          tension: 0,
+          yAxisID: 'y',
+          order: 0,
+        },
+      ];
+      chart.options.scales.y = {
+        min: 97,
+        max: 100,
+        ticks: { ...d.ticks, callback(v) { return `${v}%`; } },
+        grid: { color: isDark() ? 'rgba(148, 163, 184, 0.12)' : 'rgba(148, 163, 184, 0.18)' },
+        title: { display: true, text: 'Availability %', color: d.color, font: { size: 11 } },
+      };
+      chart.options.scales.y1 = {
+        position: 'right',
+        min: 0,
+        display: true,
+        ticks: { ...d.ticks, callback(v) { return `${v}%`; } },
+        grid: { drawOnChartArea: false },
+      };
+    }
+
+    document.querySelectorAll('[data-so-avail-gran]').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.soAvailGran === state.soAvailGranularity);
+    });
+    document.querySelectorAll('[data-so-avail-metric]').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.soAvailMetric === state.soAvailMetric);
+    });
+
+    chart.options.scales.x = getSoAvailabilityXAxisOptions(granularity);
+    chart.options.layout = { padding: getSoAvailabilityLayoutPadding(granularity) };
+    applySoAvailabilityChartLayout(granularity);
+
     chart.update(animate ? 'default' : 'none');
+  }
+
+  function handleSoAvailChartClick(_evt, elements) {
+    if (!elements?.length) return;
+    const idx = elements[0].index;
+    state.soAvailSelectedIndex = idx;
+    renderZoneCircleLossForAvailPoint(idx);
+  }
+
+  function exportSoAvailabilityCsv() {
+    const series = getSoAvailabilitySeries();
+    const lines = ['Timestamp,Availability %,Planned %,Forced %,Planned Hrs,Forced Hrs'];
+    series.labels.forEach((label, i) => {
+      const p = series.points[i];
+      lines.push([
+        label,
+        p.availability.toFixed(2),
+        p.planned.toFixed(2),
+        p.forced.toFixed(2),
+        p.plannedHr.toFixed(1),
+        p.forcedHr.toFixed(1),
+      ].join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transmission-availability-trend.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function resetSoAvailabilityWidget() {
+    state.soAvailGranularity = 'hourly';
+    state.soAvailMetric = 'availability';
+    state.soAvailSelectedIndex = null;
+    renderZoneCircleLossForAvailPoint(null);
+    syncSoAvailabilityChart(true);
+  }
+
+  function syncAvailabilityChart(animate) {
+    syncSoAvailabilityChart(animate);
   }
 
   function applyTimeFilterToChartScales(chart, filter, animate) {
@@ -1425,7 +1849,11 @@
   }
 
   const TSA_OUTAGE_CLASS_LABELS = ['Shutdown', 'Breakdown', 'Tripping'];
-  const TSA_OUTAGE_CLASS_COLORS = ['#7E57C2', '#42A5F5', '#26C6DA'];
+  const TSA_OUTAGE_CLASS_COLORS = [
+    OUTAGE_CLASS_PALETTE.shutdown,
+    OUTAGE_CLASS_PALETTE.breakdown,
+    OUTAGE_CLASS_PALETTE.tripping,
+  ];
 
   function renderDonutSplitLegend(legendId, labels, values, colors, { decimals = 0 } = {}) {
     const legend = document.getElementById(legendId);
@@ -1563,10 +1991,7 @@
       availability: 99.82,
       plannedOutage: 0.12,
       forcedOutage: 0.06,
-      availabilityHistory: Array.from({ length: 30 }, () => ({
-        planned: rand(0.05, 0.2),
-        forced: rand(0.02, 0.12),
-      })),
+      availabilityHistory: Array.from({ length: 48 }, () => buildAvailabilityHistoryPoint()),
       gridFrequency: 50.02,
       feeders: {
         all: { mw: 142.5, mva: 158.3 },
@@ -3384,97 +3809,146 @@
     });
     syncOvHealthChart();
 
-    // Availability outage trend (24h)
-    const availCount = 24;
-    const availHist = state.data.availabilityHistory.slice(-availCount);
-    while (availHist.length < availCount) {
-      availHist.unshift({ planned: rand(0.05, 0.2), forced: rand(0.02, 0.12) });
-    }
-    state.charts.availSpark = new Chart(document.getElementById('availability-sparkline'), {
-      type: 'bar',
-      data: {
-        labels: getAvailabilityChartLabels(availCount),
-        datasets: [
-          {
-            label: 'Planned Outage',
-            data: availHist.map((h) => h.planned),
-            backgroundColor: '#f59e0b',
-            borderRadius: 6,
-            borderSkipped: false,
-            maxBarThickness: 28,
-            barPercentage: 0.78,
-            categoryPercentage: 0.7,
-          },
-          {
-            label: 'Forced Outage',
-            data: availHist.map((h) => h.forced),
-            backgroundColor: '#ef4444',
-            borderRadius: 6,
-            borderSkipped: false,
-            maxBarThickness: 28,
-            barPercentage: 0.78,
-            categoryPercentage: 0.7,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        layout: { padding: { top: 8, bottom: 0, left: 2, right: 6 } },
-        plugins: {
-          legend: {
-            display: true,
-            position: 'bottom',
-            align: 'center',
-            labels: {
-              color: d.color,
-              font: { size: 11, weight: '600' },
-              boxWidth: 12,
-              padding: 12,
-              usePointStyle: true,
-              pointStyle: 'rectRounded',
+    // Transmission availability trend (System Operation)
+    const soAvailEl = document.getElementById('so-availability-chart');
+    if (soAvailEl) {
+      const series = getSoAvailabilitySeries('hourly');
+      state.charts.soAvailability = new Chart(soAvailEl, {
+        type: 'bar',
+        plugins: [soAvailThresholdPlugin],
+        data: {
+          labels: series.labels,
+          datasets: [
+            {
+              type: 'bar',
+              label: 'Planned Outage',
+              data: series.planned,
+              backgroundColor: SO_AVAIL_PLANNED_FILL,
+              borderRadius: 3,
+              stack: 'outage',
+              maxBarThickness: 18,
+              yAxisID: 'y1',
+              order: 4,
             },
-          },
-          tooltip: {
-            ...d.tooltip,
-            backgroundColor: '#333',
-          },
+            {
+              type: 'bar',
+              label: 'Forced Outage',
+              data: series.forced,
+              backgroundColor: SO_AVAIL_FORCED_FILL,
+              borderRadius: 3,
+              stack: 'outage',
+              maxBarThickness: 18,
+              yAxisID: 'y1',
+              order: 5,
+            },
+            {
+              type: 'line',
+              label: 'Actual Availability %',
+              data: series.availability,
+              borderColor: SO_AVAIL_LINE_COLOR,
+              backgroundColor: 'rgba(16, 185, 129, 0.12)',
+              fill: true,
+              tension: 0.42,
+              pointRadius: 3,
+              borderWidth: 2.5,
+              yAxisID: 'y',
+              order: 1,
+            },
+            {
+              type: 'line',
+              label: 'HERC Target',
+              data: series.labels.map(() => SO_HERC_TARGET),
+              borderColor: SO_AVAIL_TARGET_COLOR,
+              borderDash: [6, 4],
+              borderWidth: 2,
+              pointRadius: 0,
+              yAxisID: 'y',
+              order: 0,
+            },
+          ],
         },
-        scales: {
-          x: {
-            stacked: true,
-            grid: { display: false },
-            border: { display: false },
-            ticks: {
-              color: isDark() ? d.color : '#4b5563',
-              font: { size: 10, weight: '600' },
-              maxTicksLimit: 8,
-              maxRotation: 0,
-              autoSkip: true,
-            },
-          },
-          y: {
-            stacked: true,
-            beginAtZero: true,
-            suggestedMax: 0.35,
-            grid: { display: false },
-            border: { display: false },
-            ticks: {
-              color: d.color,
-              font: { size: 10 },
-              maxTicksLimit: 5,
-              callback: (v) => `${v}%`,
-            },
-            title: {
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          onClick: handleSoAvailChartClick,
+          layout: { padding: getSoAvailabilityLayoutPadding('hourly') },
+          plugins: {
+            legend: {
               display: true,
-              text: 'Outage %',
-              color: d.color,
-              font: { size: 11, weight: '600' },
+              position: 'bottom',
+              labels: {
+                color: d.color,
+                font: { size: 11, weight: '500' },
+                usePointStyle: true,
+                boxWidth: 10,
+                padding: 14,
+              },
+            },
+            tooltip: {
+              ...d.tooltip,
+              backgroundColor: isDark() ? 'rgba(15, 23, 42, 0.94)' : 'rgba(255, 255, 255, 0.98)',
+              titleColor: isDark() ? '#F8FAFC' : '#0F172A',
+              bodyColor: isDark() ? '#CBD5E1' : '#475569',
+              borderColor: isDark() ? 'rgba(148, 163, 184, 0.25)' : 'rgba(226, 232, 240, 1)',
+              borderWidth: 1,
+              padding: 12,
+              cornerRadius: 10,
+              callbacks: {
+                title(items) {
+                  return items[0]?.label || '';
+                },
+                label(ctx) {
+                  const val = Number(ctx.parsed.y);
+                  if (ctx.dataset.label === 'HERC Target') return ` HERC Target: ${SO_HERC_TARGET.toFixed(2)}%`;
+                  if (ctx.dataset.label === 'Actual Availability %') return ` Availability: ${val.toFixed(2)}%`;
+                  if (ctx.dataset.label?.includes('Planned')) return ` Planned Outage: ${val.toFixed(2)}%`;
+                  if (ctx.dataset.label?.includes('Forced')) return ` Forced Outage: ${val.toFixed(2)}%`;
+                  return ` ${ctx.dataset.label}: ${val.toFixed(2)}`;
+                },
+                afterBody(items) {
+                  const idx = items[0]?.dataIndex;
+                  const point = getSoAvailabilitySeries().points[idx];
+                  if (!point) return [];
+                  const gap = point.availability - SO_HERC_TARGET;
+                  const status = gap >= 0
+                    ? `PASS (+${gap.toFixed(2)}% above target)`
+                    : `FAIL (${gap.toFixed(2)}% below target)`;
+                  return [
+                    `Planned Outage: ${point.planned.toFixed(2)}% (${point.plannedHr.toFixed(1)} hrs)`,
+                    `Forced Outage: ${point.forced.toFixed(2)}% (${point.forcedHr.toFixed(1)} hrs)`,
+                    `Compliance Status: ${status}`,
+                  ];
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              stacked: true,
+              grid: { display: false },
+              ticks: { ...d.ticks, maxTicksLimit: 10, maxRotation: 0 },
+            },
+            y: {
+              min: 97,
+              max: 100,
+              stacked: false,
+              ticks: { ...d.ticks, callback(v) { return `${v}%`; } },
+              grid: { color: isDark() ? 'rgba(148, 163, 184, 0.12)' : 'rgba(148, 163, 184, 0.18)' },
+              title: { display: true, text: 'Availability %', color: d.color, font: { size: 11 } },
+            },
+            y1: {
+              position: 'right',
+              min: 0,
+              stacked: true,
+              ticks: { ...d.ticks, callback(v) { return `${v}%`; } },
+              grid: { drawOnChartArea: false },
             },
           },
         },
-      },
-    });
+      });
+      syncSoAvailabilityChart(false);
+    }
 
     // Load profile
     state.charts.loadProfile = new Chart(document.getElementById('load-profile-chart'), {
@@ -6251,6 +6725,7 @@
     setText('tl-total-loss', `${total.toFixed(2)}%`);
     setText('tl-avail-target', `${(losses.availabilityTarget ?? 99.20).toFixed(2)}%`);
 
+    syncSoAvailabilityChart(false);
     syncLossMonthlyChart(state.charts.tlMonthlyTrend, losses.monthly);
     if (state.charts.tlMonthlyTrend) {
       requestAnimationFrame(() => {
@@ -6258,7 +6733,7 @@
         state.charts.tlMonthlyTrend.update('none');
       });
     }
-    renderZoneCircleLoss(losses);
+    renderZoneCircleLossForAvailPoint(state.soAvailSelectedIndex);
 
     const hotspotRows = (losses.hotspots || []).slice().sort((a, b) => b.loss - a.loss);
     const tbody = document.getElementById('tl-hotspots-body');
@@ -6855,10 +7330,10 @@
     }
 
     // Availability chart
-    if (state.charts.availSpark) {
-      state.data.availabilityHistory.push({ planned: data.plannedOutage, forced: data.forcedOutage });
+    if (state.charts.soAvailability || state.charts.availSpark) {
+      state.data.availabilityHistory.push(buildAvailabilityHistoryPoint(data.plannedOutage, data.forcedOutage));
       if (state.data.availabilityHistory.length > 48) state.data.availabilityHistory.shift();
-      syncAvailabilityChart(false);
+      syncSoAvailabilityChart(false);
     }
 
     // Load profile — feeder ratio handled in applyChartTimeFilter
@@ -7835,6 +8310,30 @@
 
     document.getElementById('exec-tripping-export')?.addEventListener('click', () => {
       exportExecTrippingCsv();
+    });
+
+    document.querySelectorAll('[data-so-avail-gran]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.soAvailGranularity = btn.dataset.soAvailGran;
+        state.soAvailSelectedIndex = null;
+        renderZoneCircleLossForAvailPoint(null);
+        syncSoAvailabilityChart(true);
+      });
+    });
+
+    document.querySelectorAll('[data-so-avail-metric]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.soAvailMetric = btn.dataset.soAvailMetric;
+        syncSoAvailabilityChart(true);
+      });
+    });
+
+    document.getElementById('so-avail-refresh')?.addEventListener('click', () => {
+      resetSoAvailabilityWidget();
+    });
+
+    document.getElementById('so-avail-export')?.addEventListener('click', () => {
+      exportSoAvailabilityCsv();
     });
 
     document.getElementById('tsa-deemed-body')?.addEventListener('click', (e) => {

@@ -508,12 +508,50 @@
 
           <div class="grid-2 page-section so-ops-geo-grid">
             <div class="so-ops-stack" aria-label="Operational Analytics">
-              <div class="panel so-ops-panel">
-                <div class="panel-header">
-                  <h3>Transmission Availability</h3>
+              <div class="panel so-ops-panel so-avail-panel">
+                <div class="panel-header so-avail-header">
+                  <div>
+                    <h3>Transmission Availability &amp; Outage Trend</h3>
+                    <p class="card__meta" id="so-avail-subtitle">Hourly availability tracking against HERC regulatory target (98.5%)</p>
+                  </div>
+                  <div class="panel-header-actions so-avail-actions">
+                    <div class="tsa-register-tabs so-avail-granularity-tabs" role="tablist" aria-label="Availability granularity">
+                      <button type="button" class="tsa-tab is-active" data-so-avail-gran="hourly">Hourly</button>
+                      <button type="button" class="tsa-tab" data-so-avail-gran="daily">Daily</button>
+                      <button type="button" class="tsa-tab" data-so-avail-gran="monthly">Monthly</button>
+                    </div>
+                    <div class="tsa-register-tabs so-avail-metric-tabs" role="tablist" aria-label="Availability metric view">
+                      <button type="button" class="tsa-tab is-active" data-so-avail-metric="availability">Availability %</button>
+                      <button type="button" class="tsa-tab" data-so-avail-metric="outage-hours">Outage Hours</button>
+                    </div>
+                    <div class="chart-toolbar">
+                      <button type="button" class="btn btn-secondary btn-sm" id="so-avail-refresh" title="Refresh view">
+                        <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                      </button>
+                      <button type="button" class="btn btn-secondary btn-sm" id="so-avail-export" title="Export summary">
+                        <i data-lucide="download" class="h-4 w-4"></i>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div class="panel-body">
-                  <div class="avail-chart-wrap"><canvas id="availability-sparkline"></canvas></div>
+                <div class="panel-body so-avail-body">
+                  <div class="so-avail-kpi-row">
+                    <div class="so-avail-kpi">
+                      <span class="so-avail-kpi-label">Current Availability</span>
+                      <span class="so-avail-kpi-value" id="so-avail-current">99.82%</span>
+                    </div>
+                    <div class="so-avail-kpi so-avail-kpi--muted">
+                      <span class="so-avail-kpi-label">HERC Target</span>
+                      <span class="so-avail-kpi-value" id="so-avail-target-kpi">98.50%</span>
+                    </div>
+                    <div class="so-avail-kpi">
+                      <span class="so-avail-kpi-label">Availability Loss</span>
+                      <span class="so-avail-kpi-value" id="so-avail-loss">0.18%</span>
+                    </div>
+                  </div>
+                  <div class="so-avail-chart-wrap">
+                    <canvas id="so-availability-chart" aria-label="Transmission availability and outage trend chart"></canvas>
+                  </div>
                 </div>
               </div>
               <div class="panel so-ops-panel">
@@ -543,7 +581,9 @@
             </div>
 
             <div class="panel so-geo-loss-panel">
-              <div class="panel-header"><h3>Zone &amp; Circle Loss</h3></div>
+              <div class="panel-header">
+                <h3 id="tl-zone-loss-title">Zone &amp; Circle Loss</h3>
+              </div>
               <div class="panel-body so-geo-loss-body">
                 <div class="so-geo-loss-block">
                   <div class="so-geo-loss-title-row">
