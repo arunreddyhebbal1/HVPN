@@ -36,6 +36,9 @@
     tsaDeemedEditingKey: null,
     oaRegionalLevel: 'circle',
     oaCategoryFilter: { shutdown: true, breakdown: true, tripping: true },
+    execTrippingLevel: 'zone',
+    execCategoryFilter: { shutdown: true, breakdown: true, tripping: true },
+    execTrippingDrill: { zoneKey: null, circleKey: null, zoneLabel: null, circleLabel: null },
     lastUpdateAt: Date.now(),
   };
 
@@ -321,6 +324,136 @@
       shutdown: cats.shutdown ? shutdown : shutdown.map(() => 0),
       breakdown: cats.breakdown ? breakdown : breakdown.map(() => 0),
       tripping: cats.tripping ? tripping : tripping.map(() => 0),
+    };
+  }
+
+  function applyExecCategoryMask(cats, shutdown, breakdown, tripping) {
+    return {
+      shutdown: cats.shutdown ? shutdown : shutdown.map(() => 0),
+      breakdown: cats.breakdown ? breakdown : breakdown.map(() => 0),
+      tripping: cats.tripping ? tripping : tripping.map(() => 0),
+    };
+  }
+
+  function getExecTrippingSeries() {
+    const oa = state.data?.tsa?.outageAnalytics;
+    const cats = state.execCategoryFilter || { shutdown: true, breakdown: true, tripping: true };
+    const drill = state.execTrippingDrill || {};
+    const seed = hashFilterSeed();
+    const by = oa?.byCircle;
+
+    if (drill.circleKey) {
+      const divisions = listHierarchyDivisions().filter((div) => {
+        if (div.circleKey !== drill.circleKey) return false;
+        if (!isFilterAll(state.filters.zone) && div.zoneKey !== state.filters.zone) return false;
+        if (!isFilterAll(state.filters.division) && div.divisionKey !== state.filters.division) return false;
+        return true;
+      });
+      const shutdown = divisions.map((_, i) => Number((1.2 + seededUnit(seed, i + 40) * 4.2).toFixed(1)));
+      const breakdown = divisions.map((_, i) => Number((0.9 + seededUnit(seed, i + 50) * 3.8).toFixed(1)));
+      const tripping = divisions.map((_, i) => Number((1.4 + seededUnit(seed, i + 60) * 5.1).toFixed(1)));
+      const masked = applyExecCategoryMask(cats, shutdown, breakdown, tripping);
+      return {
+        level: 'Division',
+        drillLabel: drill.circleLabel || drill.zoneLabel,
+        labels: divisions.map((d) => d.label),
+        meta: divisions.map((d) => ({ zoneKey: d.zoneKey, circleKey: d.circleKey, divisionKey: d.divisionKey })),
+        ...masked,
+      };
+    }
+
+    if (drill.zoneKey) {
+      const circles = listHierarchyCircles().filter((c) => {
+        if (c.zoneKey !== drill.zoneKey) return false;
+        if (!isFilterAll(state.filters.circle) && c.circleKey !== state.filters.circle) return false;
+        return true;
+      });
+      const shutdown = [];
+      const breakdown = [];
+      const tripping = [];
+      circles.forEach((c, i) => {
+        const idx = by?.circleKeys?.indexOf(c.circleKey) ?? -1;
+        if (idx >= 0) {
+          shutdown.push(Number(by.shutdown[idx]) || 0);
+          breakdown.push(Number(by.breakdown[idx]) || 0);
+          tripping.push(Number(by.tripping[idx]) || 0);
+        } else {
+          shutdown.push(Number((1.2 + seededUnit(seed, i + 20) * 4.2).toFixed(1)));
+          breakdown.push(Number((0.9 + seededUnit(seed, i + 30) * 3.8).toFixed(1)));
+          tripping.push(Number((1.4 + seededUnit(seed, i + 40) * 5.1).toFixed(1)));
+        }
+      });
+      const masked = applyExecCategoryMask(cats, shutdown, breakdown, tripping);
+      return {
+        level: 'Circle',
+        drillLabel: drill.zoneLabel,
+        labels: circles.map((c) => c.label),
+        meta: circles.map((c) => ({ zoneKey: c.zoneKey, circleKey: c.circleKey })),
+        ...masked,
+      };
+    }
+
+    const level = state.execTrippingLevel || 'zone';
+    if (level === 'circle') {
+      const series = getOutageByCircleChartSeries(oa);
+      const meta = series.labels.map((_, i) => ({
+        zoneKey: by?.zoneKeys?.[i] || null,
+        circleKey: by?.circleKeys?.[i] || null,
+      }));
+      const masked = applyExecCategoryMask(cats, series.shutdown, series.breakdown, series.tripping);
+      return { level: 'Circle', labels: series.labels, meta, ...masked };
+    }
+
+    if (level === 'zone') {
+      const zones = listHierarchyZones().filter((z) =>
+        isFilterAll(state.filters.zone) || z.zoneKey === state.filters.zone
+      );
+      const shutdown = [];
+      const breakdown = [];
+      const tripping = [];
+      zones.forEach((zone, zi) => {
+        let s = 0;
+        let b = 0;
+        let t = 0;
+        (by?.zoneKeys || []).forEach((zk, i) => {
+          if (zk !== zone.zoneKey) return;
+          s += Number(by.shutdown[i]) || 0;
+          b += Number(by.breakdown[i]) || 0;
+          t += Number(by.tripping[i]) || 0;
+        });
+        if (!s && !b && !t) {
+          s = 2.4 + seededUnit(seed, zi + 1) * 4;
+          b = 1.8 + seededUnit(seed, zi + 2) * 3.5;
+          t = 2.1 + seededUnit(seed, zi + 3) * 5;
+        }
+        shutdown.push(Number(s.toFixed(1)));
+        breakdown.push(Number(b.toFixed(1)));
+        tripping.push(Number(t.toFixed(1)));
+      });
+      const masked = applyExecCategoryMask(cats, shutdown, breakdown, tripping);
+      return {
+        level: 'Zone',
+        labels: zones.map((z) => z.label),
+        meta: zones.map((z) => ({ zoneKey: z.zoneKey })),
+        ...masked,
+      };
+    }
+
+    const divisions = listHierarchyDivisions().filter((div) => {
+      if (!isFilterAll(state.filters.zone) && div.zoneKey !== state.filters.zone) return false;
+      if (!isFilterAll(state.filters.circle) && div.circleKey !== state.filters.circle) return false;
+      if (!isFilterAll(state.filters.division) && div.divisionKey !== state.filters.division) return false;
+      return true;
+    });
+    const shutdown = divisions.map((_, i) => Number((1.2 + seededUnit(seed, i + 40) * 4.2).toFixed(1)));
+    const breakdown = divisions.map((_, i) => Number((0.9 + seededUnit(seed, i + 50) * 3.8).toFixed(1)));
+    const tripping = divisions.map((_, i) => Number((1.4 + seededUnit(seed, i + 60) * 5.1).toFixed(1)));
+    const masked = applyExecCategoryMask(cats, shutdown, breakdown, tripping);
+    return {
+      level: 'Division',
+      labels: divisions.map((d) => d.label),
+      meta: divisions.map((d) => ({ zoneKey: d.zoneKey, circleKey: d.circleKey, divisionKey: d.divisionKey })),
+      ...masked,
     };
   }
 
@@ -1291,12 +1424,17 @@
     return [CHART_SUCCESS, CHART_WARNING, CHART_DANGER];
   }
 
-  function renderDonutSplitLegend(legendId, labels, values, colors) {
+  const TSA_OUTAGE_CLASS_LABELS = ['Shutdown', 'Breakdown', 'Tripping'];
+  const TSA_OUTAGE_CLASS_COLORS = ['#7E57C2', '#42A5F5', '#26C6DA'];
+
+  function renderDonutSplitLegend(legendId, labels, values, colors, { decimals = 0 } = {}) {
     const legend = document.getElementById(legendId);
     if (!legend) return;
     const total = values.reduce((s, v) => s + v, 0) || 1;
     legend.innerHTML = labels.map((label, i) => {
-      const pct = Math.round((values[i] / total) * 100);
+      const pct = decimals > 0
+        ? ((values[i] / total) * 100).toFixed(decimals)
+        : Math.round((values[i] / total) * 100);
       const color = colors[i % colors.length];
       return `
         <li class="donut-split-legend-item">
@@ -1322,6 +1460,26 @@
     state.charts.uptimeCause.data.datasets[0].backgroundColor = UPTIME_CAUSE_COLORS.slice(0, labels.length);
     state.charts.uptimeCause.data.datasets[0].borderColor = cardBg;
     state.charts.uptimeCause.update('none');
+  }
+
+  function syncTsaExecOutageClassChart(classification) {
+    const rows = filterTsaDeemedRows([...(state.data?.tsa?.deemedExempt?.rows || [])]);
+    const outageClass = classification || getTsaOutageClassification(rows);
+    const values = outageClass.values || [0, 0, 0];
+    renderDonutSplitLegend(
+      'tsa-outage-class-legend',
+      TSA_OUTAGE_CLASS_LABELS,
+      values,
+      TSA_OUTAGE_CLASS_COLORS,
+      { decimals: 1 }
+    );
+    if (!state.charts.tsaExecOutageClass) return;
+    const cardBg = getCardBgColor();
+    state.charts.tsaExecOutageClass.data.labels = TSA_OUTAGE_CLASS_LABELS;
+    state.charts.tsaExecOutageClass.data.datasets[0].data = values;
+    state.charts.tsaExecOutageClass.data.datasets[0].backgroundColor = TSA_OUTAGE_CLASS_COLORS;
+    state.charts.tsaExecOutageClass.data.datasets[0].borderColor = cardBg;
+    state.charts.tsaExecOutageClass.update('none');
   }
 
   function syncOvHealthChart() {
@@ -1392,6 +1550,7 @@
     Object.values(state.charts).forEach(updateChartTheme);
     syncUptimeCauseChart();
     syncOvHealthChart();
+    syncTsaExecOutageClassChart();
   }
 
   // ─── Mock Data Engine ──────────────────────────────────────────────────
@@ -2629,10 +2788,175 @@
     URL.revokeObjectURL(url);
   }
 
+  const OA_PREMIUM_CHART_IDS = new Set(['tsa-outage-circle-chart', 'tsa-exec-tripping-chart']);
+
+  function isOaPremiumChart(chart) {
+    return OA_PREMIUM_CHART_IDS.has(chart?.canvas?.id);
+  }
+
+  function makeOaStackedBarDatasets(series) {
+    return [
+      {
+        label: 'Shutdown',
+        data: (series.shutdown || []).slice(),
+        backgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_COLORS.shutdown),
+        hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_HOVER_COLORS.shutdown),
+        borderColor: 'transparent',
+        borderWidth: 0,
+        borderSkipped: false,
+        borderRadius: oaCircleStackRadius,
+        stack: 'outage',
+        maxBarThickness: 42,
+      },
+      {
+        label: 'Breakdown',
+        data: (series.breakdown || []).slice(),
+        backgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_COLORS.breakdown),
+        hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_HOVER_COLORS.breakdown),
+        borderColor: 'transparent',
+        borderWidth: 0,
+        borderSkipped: false,
+        borderRadius: oaCircleStackRadius,
+        stack: 'outage',
+        maxBarThickness: 42,
+      },
+      {
+        label: 'Tripping',
+        data: (series.tripping || []).slice(),
+        backgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_COLORS.tripping),
+        hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_HOVER_COLORS.tripping),
+        borderColor: 'transparent',
+        borderWidth: 0,
+        borderSkipped: false,
+        borderRadius: oaCircleStackRadius,
+        stack: 'outage',
+        maxBarThickness: 42,
+      },
+    ];
+  }
+
+  function getOaStackedBarChartOptions(d, softGrid, { onClick } = {}) {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: {
+        duration: 900,
+        easing: 'easeOutQuart',
+        delay: (ctx) => (ctx.type === 'data' ? ctx.dataIndex * 70 + ctx.datasetIndex * 45 : 0),
+      },
+      interaction: { mode: 'index', intersect: false },
+      onHover(evt, elements) {
+        const target = evt.native?.target || evt.chart?.canvas;
+        if (target) target.style.cursor = elements.length ? 'pointer' : 'default';
+      },
+      onClick,
+      layout: { padding: { top: 44, right: 8, bottom: 4, left: 4 } },
+      datasets: {
+        bar: {
+          categoryPercentage: 0.62,
+          barPercentage: 0.78,
+        },
+      },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: d.color,
+            font: { size: 11, weight: '500', family: "'Inter', sans-serif" },
+            usePointStyle: true,
+            pointStyle: 'rectRounded',
+            padding: 16,
+            boxWidth: 10,
+            boxHeight: 10,
+            generateLabels(chart) {
+              const defaults = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+              const solids = [
+                OA_CIRCLE_PALETTE.shutdown,
+                OA_CIRCLE_PALETTE.breakdown,
+                OA_CIRCLE_PALETTE.tripping,
+              ];
+              return defaults.map((item, i) => ({
+                ...item,
+                fillStyle: solids[i] || item.fillStyle,
+                strokeStyle: solids[i] || item.strokeStyle,
+              }));
+            },
+          },
+        },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.94)',
+          titleColor: '#F8FAFC',
+          bodyColor: '#CBD5E1',
+          footerColor: '#F8FAFC',
+          borderColor: 'rgba(148, 163, 184, 0.25)',
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 10,
+          displayColors: true,
+          boxPadding: 6,
+          titleFont: { size: 12, weight: '600' },
+          bodyFont: { size: 11 },
+          footerFont: { size: 11, weight: '600' },
+          callbacks: {
+            title(items) {
+              return items[0]?.label || '';
+            },
+            label(ctx) {
+              const v = Number(ctx.parsed.y) || 0;
+              return ` ${ctx.dataset.label}: ${v.toFixed(1)}h`;
+            },
+            footer(items) {
+              const total = items.reduce((s, it) => s + (Number(it.parsed.y) || 0), 0);
+              return `Total: ${total.toFixed(1)}h`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          ticks: {
+            ...d.ticks,
+            font: { size: 10, weight: '600', family: "'Inter', sans-serif" },
+            color: d.color,
+            maxRotation: 40,
+            minRotation: 0,
+            autoSkip: false,
+          },
+          grid: { display: false },
+          border: { display: false },
+        },
+        y: {
+          stacked: true,
+          min: 0,
+          grace: '8%',
+          ticks: {
+            ...d.ticks,
+            font: { size: 10, family: "'Inter', sans-serif" },
+            callback(v) { return `${v}h`; },
+          },
+          grid: {
+            color: softGrid,
+            drawTicks: false,
+            lineWidth: 1,
+          },
+          border: { display: false },
+          title: {
+            display: true,
+            text: 'Outage hours',
+            color: d.color,
+            font: { size: 11, weight: '500', family: "'Inter', sans-serif" },
+            padding: { bottom: 4 },
+          },
+        },
+      },
+    };
+  }
+
   const oaCirclePremiumPlugin = {
     id: 'oaCirclePremium',
     beforeDatasetsDraw(chart) {
-      if (chart.canvas?.id !== 'tsa-outage-circle-chart') return;
+      if (!isOaPremiumChart(chart)) return;
       chart.$oaElevated = [];
       const hover = chart.getActiveElements()[0]?.index;
       if (hover == null || hover < 0) return;
@@ -2646,7 +2970,7 @@
       });
     },
     afterDatasetsDraw(chart) {
-      if (chart.canvas?.id !== 'tsa-outage-circle-chart') return;
+      if (!isOaPremiumChart(chart)) return;
       const { ctx, chartArea } = chart;
       if (!chartArea) return;
 
@@ -2770,8 +3094,11 @@
   function startOaCirclePulse() {
     stopOaCirclePulse();
     const tick = () => {
-      if (state.currentView === 'tsa-outage-analytics' && state.charts.tsaOutageCircle) {
-        state.charts.tsaOutageCircle.draw();
+      const oaView = state.currentView === 'tsa-outage-analytics' && state.charts.tsaOutageCircle;
+      const execView = state.currentView === 'tsa-executive-summary' && state.charts.tsaExecTripping;
+      if (oaView) state.charts.tsaOutageCircle.draw();
+      if (execView) state.charts.tsaExecTripping.draw();
+      if (oaView || execView) {
         oaCirclePulseRaf = requestAnimationFrame(tick);
       } else {
         oaCirclePulseRaf = null;
@@ -2791,160 +3118,86 @@
       plugins: [oaCirclePremiumPlugin],
       data: {
         labels: series.labels,
-        datasets: [
-          {
-            label: 'Shutdown',
-            data: series.shutdown.slice(),
-            backgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_COLORS.shutdown),
-            hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_HOVER_COLORS.shutdown),
-            borderColor: 'transparent',
-            borderWidth: 0,
-            borderSkipped: false,
-            borderRadius: oaCircleStackRadius,
-            stack: 'outage',
-            maxBarThickness: 42,
-          },
-          {
-            label: 'Breakdown',
-            data: series.breakdown.slice(),
-            backgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_COLORS.breakdown),
-            hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_HOVER_COLORS.breakdown),
-            borderColor: 'transparent',
-            borderWidth: 0,
-            borderSkipped: false,
-            borderRadius: oaCircleStackRadius,
-            stack: 'outage',
-            maxBarThickness: 42,
-          },
-          {
-            label: 'Tripping',
-            data: series.tripping.slice(),
-            backgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_COLORS.tripping),
-            hoverBackgroundColor: (ctx) => makeOaCircleBarGradient(ctx.chart, OA_CIRCLE_HOVER_COLORS.tripping),
-            borderColor: 'transparent',
-            borderWidth: 0,
-            borderSkipped: false,
-            borderRadius: oaCircleStackRadius,
-            stack: 'outage',
-            maxBarThickness: 42,
-          },
-        ],
+        datasets: makeOaStackedBarDatasets(series),
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: {
-          duration: 900,
-          easing: 'easeOutQuart',
-          delay: (ctx) => (ctx.type === 'data' ? ctx.dataIndex * 70 + ctx.datasetIndex * 45 : 0),
-        },
-        interaction: { mode: 'index', intersect: false },
-        onHover(evt, elements) {
-          const target = evt.native?.target || evt.chart?.canvas;
-          if (target) target.style.cursor = elements.length ? 'pointer' : 'default';
-        },
-        layout: { padding: { top: 44, right: 8, bottom: 4, left: 4 } },
-        datasets: {
-          bar: {
-            categoryPercentage: 0.62,
-            barPercentage: 0.78,
-          },
-        },
-        plugins: {
-          legend: {
-            position: 'bottom',
-            labels: {
-              color: d.color,
-              font: { size: 11, weight: '500', family: "'Inter', sans-serif" },
-              usePointStyle: true,
-              pointStyle: 'rectRounded',
-              padding: 16,
-              boxWidth: 10,
-              boxHeight: 10,
-              generateLabels(chart) {
-                const defaults = Chart.defaults.plugins.legend.labels.generateLabels(chart);
-                const solids = [
-                  OA_CIRCLE_PALETTE.shutdown,
-                  OA_CIRCLE_PALETTE.breakdown,
-                  OA_CIRCLE_PALETTE.tripping,
-                ];
-                return defaults.map((item, i) => ({
-                  ...item,
-                  fillStyle: solids[i] || item.fillStyle,
-                  strokeStyle: solids[i] || item.strokeStyle,
-                }));
-              },
-            },
-          },
-          tooltip: {
-            backgroundColor: 'rgba(15, 23, 42, 0.94)',
-            titleColor: '#F8FAFC',
-            bodyColor: '#CBD5E1',
-            footerColor: '#F8FAFC',
-            borderColor: 'rgba(148, 163, 184, 0.25)',
-            borderWidth: 1,
-            padding: 12,
-            cornerRadius: 10,
-            displayColors: true,
-            boxPadding: 6,
-            titleFont: { size: 12, weight: '600' },
-            bodyFont: { size: 11 },
-            footerFont: { size: 11, weight: '600' },
-            callbacks: {
-              title(items) {
-                return items[0]?.label || '';
-              },
-              label(ctx) {
-                const v = Number(ctx.parsed.y) || 0;
-                return ` ${ctx.dataset.label}: ${v.toFixed(1)}h`;
-              },
-              footer(items) {
-                const total = items.reduce((s, it) => s + (Number(it.parsed.y) || 0), 0);
-                return `Total: ${total.toFixed(1)}h`;
-              },
-            },
-          },
-        },
-        scales: {
-          x: {
-            stacked: true,
-            ticks: {
-              ...d.ticks,
-              font: { size: 10, weight: '600', family: "'Inter', sans-serif" },
-              color: d.color,
-              maxRotation: 40,
-              minRotation: 0,
-              autoSkip: false,
-            },
-            grid: { display: false },
-            border: { display: false },
-          },
-          y: {
-            stacked: true,
-            min: 0,
-            grace: '8%',
-            ticks: {
-              ...d.ticks,
-              font: { size: 10, family: "'Inter', sans-serif" },
-              callback(v) { return `${v}h`; },
-            },
-            grid: {
-              color: softGrid,
-              drawTicks: false,
-              lineWidth: 1,
-            },
-            border: { display: false },
-            title: {
-              display: true,
-              text: 'Outage hours',
-              color: d.color,
-              font: { size: 11, weight: '500', family: "'Inter', sans-serif" },
-              padding: { bottom: 4 },
-            },
-          },
-        },
-      },
+      options: getOaStackedBarChartOptions(d, softGrid),
     });
+  }
+
+  function handleExecTrippingChartClick(_evt, elements) {
+    if (!elements?.length) return;
+    const series = state._lastExecTrippingSeries;
+    if (!series?.meta) return;
+    const idx = elements[0].index;
+    const item = series.meta[idx];
+    if (!item) return;
+    const drill = state.execTrippingDrill || {};
+
+    if (series.level === 'Zone' && item.zoneKey && !drill.zoneKey) {
+      state.execTrippingDrill = {
+        zoneKey: item.zoneKey,
+        zoneLabel: series.labels[idx],
+        circleKey: null,
+        circleLabel: null,
+      };
+      renderTsaExecutiveSummary();
+      return;
+    }
+    if (series.level === 'Circle' && item.circleKey && !drill.circleKey) {
+      state.execTrippingDrill = {
+        zoneKey: drill.zoneKey || item.zoneKey,
+        zoneLabel: drill.zoneLabel,
+        circleKey: item.circleKey,
+        circleLabel: series.labels[idx],
+      };
+      renderTsaExecutiveSummary();
+    }
+  }
+
+  function buildTsaExecTrippingChart() {
+    const d = chartDefaults();
+    const softGrid = isDark() ? 'rgba(148, 163, 184, 0.10)' : 'rgba(148, 163, 184, 0.16)';
+    const series = getExecTrippingSeries();
+    state._lastExecTrippingSeries = series;
+
+    return new Chart(document.getElementById('tsa-exec-tripping-chart'), {
+      type: 'bar',
+      plugins: [oaCirclePremiumPlugin],
+      data: {
+        labels: series.labels,
+        datasets: makeOaStackedBarDatasets(series),
+      },
+      options: getOaStackedBarChartOptions(d, softGrid, {
+        onClick: handleExecTrippingChartClick,
+      }),
+    });
+  }
+
+  function exportExecTrippingCsv() {
+    const series = getExecTrippingSeries();
+    const lines = ['Location,Shutdown (h),Breakdown (h),Tripping (h),Total (h)'];
+    (series.labels || []).forEach((label, i) => {
+      const s = Number(series.shutdown[i]) || 0;
+      const b = Number(series.breakdown[i]) || 0;
+      const t = Number(series.tripping[i]) || 0;
+      lines.push([label, s.toFixed(1), b.toFixed(1), t.toFixed(1), (s + b + t).toFixed(1)].join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'tripping-analytics.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function resetExecTrippingWidget() {
+    state.execTrippingDrill = { zoneKey: null, circleKey: null, zoneLabel: null, circleLabel: null };
+    state.execCategoryFilter = { shutdown: true, breakdown: true, tripping: true };
+    document.querySelectorAll('[data-exec-cat]').forEach((input) => {
+      input.checked = true;
+    });
+    renderTsaExecutiveSummary();
   }
 
   function buildTsaOutageTafmChart() {
@@ -3931,36 +4184,7 @@
 
     const tsaExecTrippingEl = document.getElementById('tsa-exec-tripping-chart');
     if (tsaExecTrippingEl) {
-      const zoneSeries = tsa.trippingHierarchy?.zones || [];
-      state.charts.tsaExecTripping = new Chart(tsaExecTrippingEl, {
-        type: 'bar',
-        data: {
-          labels: zoneSeries.map((z) => z.label),
-          datasets: [{
-            label: 'Trips',
-            data: zoneSeries.map((z) => z.trips),
-            backgroundColor: zoneSeries.map((_, i) => (i === 0 ? CHART_PRIMARY : 'rgba(14, 165, 233, 0.45)')),
-            borderRadius: 6,
-            maxBarThickness: 48,
-          }],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false }, tooltip: d.tooltip },
-          scales: {
-            x: { ticks: d.ticks, grid: { display: false } },
-            y: { min: 0, ticks: { ...d.ticks, precision: 0 }, grid: d.grid },
-          },
-          onClick(evt, elements) {
-            if (!elements.length) return;
-            const idx = elements[0].index;
-            const item = zoneSeries[idx];
-            if (!item?.key) return;
-            openTsaTrippingModal('circle', item.key, item.label);
-          },
-        },
-      });
+      state.charts.tsaExecTripping = buildTsaExecTrippingChart();
     }
 
     const tsaExecOutageEl = document.getElementById('tsa-exec-outage-class-chart');
@@ -3968,19 +4192,21 @@
       state.charts.tsaExecOutageClass = new Chart(tsaExecOutageEl, {
         type: 'doughnut',
         data: {
-          labels: ['Shutdown', 'Breakdown', 'Tripping'],
+          labels: TSA_OUTAGE_CLASS_LABELS,
           datasets: [{
             data: [0, 0, 0],
-            backgroundColor: [OA_CIRCLE_PALETTE.shutdown, OA_CIRCLE_PALETTE.breakdown, OA_CIRCLE_PALETTE.tripping],
-            borderWidth: 0,
+            backgroundColor: TSA_OUTAGE_CLASS_COLORS,
+            borderColor: getCardBgColor(),
+            borderWidth: 3,
+            hoverOffset: 2,
           }],
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          cutout: '62%',
+          cutout: '78%',
           plugins: {
-            legend: { position: 'bottom', labels: { color: d.color, font: { size: 11 }, usePointStyle: true } },
+            legend: { display: false },
             tooltip: {
               ...d.tooltip,
               callbacks: {
@@ -3994,6 +4220,7 @@
           },
         },
       });
+      syncTsaExecOutageClassChart();
     }
 
     const tsaTrippingDrillEl = document.getElementById('tsa-tripping-drill-chart');
@@ -4705,10 +4932,12 @@
     setText('tsa-kpi-tafm-status', gapPp >= 0 ? 'Above HERC target' : 'Below HERC target');
     setText('tsa-gauge-value', `${tsa.monthlyTafm.toFixed(2)}%`);
     setText('tsa-gauge-period', tsa.periodLabel);
-    setText('tsa-pct-shutdown', `${outageClass.shutdownPct.toFixed(1)}%`);
-    setText('tsa-pct-breakdown', `${outageClass.breakdownPct.toFixed(1)}%`);
-    setText('tsa-pct-tripping', `${outageClass.trippingPct.toFixed(1)}%`);
-    setText('tsa-exec-tripping-scope', 'Zone comparison · click a bar to drill down');
+
+    const execTrippingSeries = getExecTrippingSeries();
+    state._lastExecTrippingSeries = execTrippingSeries;
+    let execScope = `Grouped by ${execTrippingSeries.level} · contribution hours`;
+    if (execTrippingSeries.drillLabel) execScope += ` · ${execTrippingSeries.drillLabel}`;
+    setText('tsa-exec-tripping-scope', execScope);
 
     applyTsaKpiTone(document.getElementById('tsa-kpi-tafm-card'), gapPp >= 0.5 ? 'good' : gapPp >= 0 ? 'warn' : 'bad');
     applyTsaKpiTone(document.getElementById('tsa-kpi-herc-card'), gapPp >= 0 ? 'good' : 'bad');
@@ -4741,14 +4970,14 @@
       state.charts.tsaTafmGauge.update('none');
     }
     if (state.charts.tsaExecTripping) {
-      const zones = tsa.trippingHierarchy?.zones || [];
-      state.charts.tsaExecTripping.data.labels = zones.map((z) => z.label);
-      state.charts.tsaExecTripping.data.datasets[0].data = zones.map((z) => z.trips);
+      state.charts.tsaExecTripping.data.labels = execTrippingSeries.labels;
+      state.charts.tsaExecTripping.data.datasets[0].data = execTrippingSeries.shutdown.slice();
+      state.charts.tsaExecTripping.data.datasets[1].data = execTrippingSeries.breakdown.slice();
+      state.charts.tsaExecTripping.data.datasets[2].data = execTrippingSeries.tripping.slice();
       state.charts.tsaExecTripping.update('none');
     }
     if (state.charts.tsaExecOutageClass) {
-      state.charts.tsaExecOutageClass.data.datasets[0].data = outageClass.values.map((v) => Number(v.toFixed(2)));
-      state.charts.tsaExecOutageClass.update('none');
+      syncTsaExecOutageClassChart(outageClass);
     }
     if (state.charts.tsaAvailCategory) {
       state.charts.tsaAvailCategory.data.labels = tsa.category.labels;
@@ -4757,6 +4986,14 @@
     }
 
     renderTsaDeemedRows('tsa-exec-deemed-body', deemedRows, { compact: true });
+
+    document.querySelectorAll('[data-exec-level]').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.execLevel === state.execTrippingLevel);
+    });
+    document.querySelectorAll('[data-exec-cat]').forEach((input) => {
+      const key = input.dataset.execCat;
+      input.checked = !!state.execCategoryFilter[key];
+    });
   }
 
   function enrichTsaAcLine(row) {
@@ -7431,6 +7668,9 @@
     if (viewId === 'tsa-outage-analytics') {
       startTafmPulse();
       startOaCirclePulse();
+    } else if (viewId === 'tsa-executive-summary') {
+      stopTafmPulse();
+      startOaCirclePulse();
     } else {
       stopTafmPulse();
       stopOaCirclePulse();
@@ -7570,6 +7810,31 @@
         state.oaCategoryFilter[key] = input.checked;
         renderTsaOutageAnalytics();
       });
+    });
+
+    document.querySelectorAll('[data-exec-level]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.execTrippingLevel = btn.dataset.execLevel;
+        state.execTrippingDrill = { zoneKey: null, circleKey: null, zoneLabel: null, circleLabel: null };
+        renderTsaExecutiveSummary();
+      });
+    });
+
+    document.querySelectorAll('[data-exec-cat]').forEach((input) => {
+      input.addEventListener('change', () => {
+        const key = input.dataset.execCat;
+        if (!key) return;
+        state.execCategoryFilter[key] = input.checked;
+        renderTsaExecutiveSummary();
+      });
+    });
+
+    document.getElementById('exec-tripping-refresh')?.addEventListener('click', () => {
+      resetExecTrippingWidget();
+    });
+
+    document.getElementById('exec-tripping-export')?.addEventListener('click', () => {
+      exportExecTrippingCsv();
     });
 
     document.getElementById('tsa-deemed-body')?.addEventListener('click', (e) => {

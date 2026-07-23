@@ -1273,32 +1273,49 @@
           </div>
 
           <div class="grid-2 page-section">
-            <div class="panel">
+            <div class="panel oa-circle-premium" id="tsa-exec-tripping-panel">
               <div class="panel-header">
                 <div>
-                  <h3>Tripping by Zone / Circle / Division</h3>
-                  <p class="card__meta" id="tsa-exec-tripping-scope">Portfolio comparison</p>
+                  <h3>Tripping Analytics &amp; Outage Impact</h3>
+                  <p class="card__meta" id="tsa-exec-tripping-scope">Grouped by Zone · contribution hours</p>
+                </div>
+                <div class="panel-header-actions oa-panel-actions">
+                  <div class="tsa-register-tabs oa-level-tabs" role="tablist" aria-label="Tripping regional grouping">
+                    <button type="button" class="tsa-tab is-active" data-exec-level="zone">Zone</button>
+                    <button type="button" class="tsa-tab" data-exec-level="circle">Circle</button>
+                    <button type="button" class="tsa-tab" data-exec-level="division">Division</button>
+                  </div>
+                  <div class="oa-category-toggles" aria-label="Outage category filters">
+                    <label class="oa-cat-toggle is-shutdown"><input type="checkbox" data-exec-cat="shutdown" checked> Shutdown</label>
+                    <label class="oa-cat-toggle is-breakdown"><input type="checkbox" data-exec-cat="breakdown" checked> Breakdown</label>
+                    <label class="oa-cat-toggle is-tripping"><input type="checkbox" data-exec-cat="tripping" checked> Tripping</label>
+                  </div>
+                  <div class="chart-toolbar">
+                    <button type="button" class="btn btn-secondary btn-sm" id="exec-tripping-refresh" title="Refresh view">
+                      <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="exec-tripping-export" title="Export summary">
+                      <i data-lucide="download" class="h-4 w-4"></i>
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div class="panel-body chart-container-lg">
-                <canvas id="tsa-exec-tripping-chart" aria-label="Tripping comparison bar chart"></canvas>
+              <div class="panel-body chart-container-lg oa-circle-chart-wrap">
+                <canvas id="tsa-exec-tripping-chart" aria-label="Tripping analytics stacked bar chart"></canvas>
               </div>
             </div>
             <div class="panel">
-              <div class="panel-header">
-                <div>
-                  <h3>Outage Classification</h3>
-                  <p class="card__meta">Shutdown / Breakdown / Tripping share</p>
-                </div>
-              </div>
-              <div class="panel-body">
-                <div class="tsa-outage-pct-row" id="tsa-outage-pct-badges">
-                  <div class="tsa-outage-pct-badge is-shutdown"><span class="tsa-outage-pct-label">Shutdown</span><span class="tsa-outage-pct-value" id="tsa-pct-shutdown">0%</span></div>
-                  <div class="tsa-outage-pct-badge is-breakdown"><span class="tsa-outage-pct-label">Breakdown</span><span class="tsa-outage-pct-value" id="tsa-pct-breakdown">0%</span></div>
-                  <div class="tsa-outage-pct-badge is-tripping"><span class="tsa-outage-pct-label">Tripping</span><span class="tsa-outage-pct-value" id="tsa-pct-tripping">0%</span></div>
-                </div>
-                <div class="chart-container">
-                  <canvas id="tsa-exec-outage-class-chart" aria-label="Outage classification donut chart"></canvas>
+              <div class="panel-header"><h3>Outage Classification</h3></div>
+              <div class="panel-body donut-split-body">
+                <div class="donut-split-layout">
+                  <ul class="donut-split-legend" id="tsa-outage-class-legend" aria-label="Outage classification legend"></ul>
+                  <div class="donut-split-chart-wrap">
+                    <canvas id="tsa-exec-outage-class-chart" aria-label="Outage classification donut chart"></canvas>
+                    <div class="donut-split-center" aria-hidden="true">
+                      <span>Outage</span>
+                      <span>Classification</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
