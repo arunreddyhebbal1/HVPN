@@ -30,6 +30,12 @@
     anomalyLog: [],
     liveAlarms: [],
     tick: 0,
+    tsaDeemedFilter: 'all',
+    tsaTrippingDrill: { level: 'zone', parentKey: null },
+    currentUser: { name: 'Priya Sharma', email: 'priya.s@hvpn.gov.in', role: 'O&M Engineer' },
+    tsaDeemedEditingKey: null,
+    oaRegionalLevel: 'circle',
+    oaCategoryFilter: { shutdown: true, breakdown: true, tripping: true },
     lastUpdateAt: Date.now(),
   };
 
@@ -219,6 +225,248 @@
       breakdown: use.map((i) => Number(by.breakdown[i]) || 0),
       tripping: use.map((i) => Number(by.tripping[i]) || 0),
     };
+  }
+
+  function listHierarchyZones() {
+    return Object.entries(FILTER_HIERARCHY)
+      .filter(([zoneKey, zone]) => !isOtherHierarchyLabel(zone?.label) && !isOtherHierarchyLabel(zoneKey))
+      .map(([zoneKey, zone]) => ({ zoneKey, label: zone.label || zoneKey }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  function listHierarchyDivisions() {
+    const out = [];
+    Object.entries(FILTER_HIERARCHY).forEach(([zoneKey, zone]) => {
+      if (isOtherHierarchyLabel(zone?.label) || isOtherHierarchyLabel(zoneKey)) return;
+      Object.entries(zone.circles || {}).forEach(([circleKey, circle]) => {
+        if (isOtherHierarchyLabel(circle?.label) || isOtherHierarchyLabel(circleKey)) return;
+        Object.entries(circle.divisions || {}).forEach(([divisionKey, division]) => {
+          if (isOtherHierarchyLabel(division?.label) || isOtherHierarchyLabel(divisionKey)) return;
+          out.push({
+            zoneKey,
+            circleKey,
+            divisionKey,
+            label: division.label || divisionKey,
+          });
+        });
+      });
+    });
+    return out.sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  function getOaRegionalSeries(oa, level = state.oaRegionalLevel) {
+    const seed = hashFilterSeed();
+    const cats = state.oaCategoryFilter || { shutdown: true, breakdown: true, tripping: true };
+    const mask = (vals) => vals.map((v, i) => Number((v * (0.92 + seededUnit(seed, i + 17) * 0.16)).toFixed(1)));
+
+    if (level === 'circle') {
+      const series = getOutageByCircleChartSeries(oa);
+      return {
+        level: 'Circle',
+        labels: series.labels,
+        shutdown: cats.shutdown ? series.shutdown : series.shutdown.map(() => 0),
+        breakdown: cats.breakdown ? series.breakdown : series.breakdown.map(() => 0),
+        tripping: cats.tripping ? series.tripping : series.tripping.map(() => 0),
+      };
+    }
+
+    if (level === 'zone') {
+      const by = oa?.byCircle;
+      const zones = listHierarchyZones().filter((z) =>
+        isFilterAll(state.filters.zone) || z.zoneKey === state.filters.zone
+      );
+      const shutdown = [];
+      const breakdown = [];
+      const tripping = [];
+      zones.forEach((zone, zi) => {
+        let s = 0;
+        let b = 0;
+        let t = 0;
+        (by?.zoneKeys || []).forEach((zk, i) => {
+          if (zk !== zone.zoneKey) return;
+          s += Number(by.shutdown[i]) || 0;
+          b += Number(by.breakdown[i]) || 0;
+          t += Number(by.tripping[i]) || 0;
+        });
+        if (!s && !b && !t) {
+          s = 2.4 + seededUnit(seed, zi + 1) * 4;
+          b = 1.8 + seededUnit(seed, zi + 2) * 3.5;
+          t = 2.1 + seededUnit(seed, zi + 3) * 5;
+        }
+        shutdown.push(Number(s.toFixed(1)));
+        breakdown.push(Number(b.toFixed(1)));
+        tripping.push(Number(t.toFixed(1)));
+      });
+      return {
+        level: 'Zone',
+        labels: zones.map((z) => z.label),
+        shutdown: cats.shutdown ? shutdown : shutdown.map(() => 0),
+        breakdown: cats.breakdown ? breakdown : breakdown.map(() => 0),
+        tripping: cats.tripping ? tripping : tripping.map(() => 0),
+      };
+    }
+
+    const divisions = listHierarchyDivisions().filter((div) => {
+      if (!isFilterAll(state.filters.zone) && div.zoneKey !== state.filters.zone) return false;
+      if (!isFilterAll(state.filters.circle) && div.circleKey !== state.filters.circle) return false;
+      if (!isFilterAll(state.filters.division) && div.divisionKey !== state.filters.division) return false;
+      return true;
+    });
+    const shutdown = divisions.map((_, i) => Number((1.2 + seededUnit(seed, i + 40) * 4.2).toFixed(1)));
+    const breakdown = divisions.map((_, i) => Number((0.9 + seededUnit(seed, i + 50) * 3.8).toFixed(1)));
+    const tripping = divisions.map((_, i) => Number((1.4 + seededUnit(seed, i + 60) * 5.1).toFixed(1)));
+    return {
+      level: 'Division',
+      labels: divisions.map((d) => d.label),
+      shutdown: cats.shutdown ? shutdown : shutdown.map(() => 0),
+      breakdown: cats.breakdown ? breakdown : breakdown.map(() => 0),
+      tripping: cats.tripping ? tripping : tripping.map(() => 0),
+    };
+  }
+
+  function getOaFilteredDeemedRows() {
+    const rows = state.data?.tsa?.deemedExempt?.rows || [];
+    return rows.filter((row) => {
+      if (!isFilterAll(state.filters.substation)) {
+        const subs = getSubstationsForFilter();
+        const match = Object.values(subs).some((ss) =>
+          row.element?.includes(getSubstationLabel(ss)) || row.element?.includes(ss?.label)
+        );
+        if (!match && !row.element?.toLowerCase().includes('kv')) return false;
+      }
+      return true;
+    });
+  }
+
+  function buildOaDashboardSnapshot(oa) {
+    const seed = hashFilterSeed();
+    const deemed = getOaFilteredDeemedRows();
+    const trips = getTsaTrippingRows();
+    const target = oa?.target ?? 98.5;
+    const scale = 0.88 + (seed % 9) * 0.03;
+
+    const sumByCat = (cat) => deemed.filter((r) => r.category === cat);
+    const trippingRows = sumByCat('Tripping');
+    const breakdownRows = sumByCat('Breakdown');
+    const shutdownRows = sumByCat('Shutdown');
+    const sumHours = (rows) => rows.reduce((s, r) => s + r.hours, 0);
+    const plannedRows = deemed.filter((r) => /maintenance|testing|construction|oil/i.test(r.reason || ''));
+    const unplannedRows = deemed.filter((r) => !plannedRows.includes(r));
+
+    const totalHours = sumHours(deemed) * scale || 52.4;
+    const countableHours = deemed.filter((r) => r.countable === 'Counted').reduce((s, r) => s + r.hours, 0) * scale;
+    const exemptHours = deemed.filter((r) => r.countable === 'Deemed exempt').reduce((s, r) => s + r.hours, 0) * scale;
+    const effectiveHours = countableHours * 0.94;
+    const netHours = Math.max(totalHours - exemptHours * 0.35, 0);
+
+    const tsa = clamp((oa?.tafmTrend?.values?.slice(-1)[0] ?? 99.62) - (seed % 5) * 0.02, 98.2, 99.95);
+    const gap = tsa - target;
+
+    const waterfall = {
+      steps: [
+        { label: 'Nominal', range: [target, 100] },
+        { label: 'Shutdown', range: [tsa + 0.42, tsa + 0.42 + 0.38] },
+        { label: 'Breakdown', range: [tsa + 0.18, tsa + 0.42] },
+        { label: 'Trip Penalty', range: [tsa + 0.08, tsa + 0.18] },
+        { label: 'Generator', range: [tsa + 0.03, tsa + 0.08] },
+        { label: 'Other', range: [tsa, tsa + 0.03] },
+        { label: 'Actual TSA', range: [tsa - 0.02, tsa + 0.02] },
+      ],
+      actual: tsa,
+    };
+
+    const durationBuckets = {
+      labels: ['< 6 hrs', '6–12 hrs', '12–24 hrs', '> 1 Day'],
+      values: [
+        Math.round(8 + seededUnit(seed, 71) * 10),
+        Math.round(5 + seededUnit(seed, 72) * 8),
+        Math.round(3 + seededUnit(seed, 73) * 6),
+        Math.round(1 + seededUnit(seed, 74) * 4),
+      ],
+    };
+
+    const voltageWeight = (kv) => (kv >= 400 ? 1.4 : kv >= 220 ? 1.2 : kv >= 132 ? 1.0 : 0.8);
+    const impactElements = (oa?.pareto || []).map((item, i) => {
+      const tripsCount = trips[i % trips.length]?.z || Math.round(1 + seededUnit(seed, i + 80) * 4);
+      const kvMatch = item.label.match(/(\d+)kV/i);
+      const kv = kvMatch ? Number(kvMatch[1]) : 220;
+      const impact = Number((item.hours * (1 + tripsCount * 0.15) * voltageWeight(kv)).toFixed(1));
+      return {
+        name: item.label,
+        hours: item.hours,
+        trips: tripsCount,
+        kv,
+        impact,
+        generator: /ict|generator|gss/i.test(item.label),
+      };
+    }).sort((a, b) => b.impact - a.impact);
+
+    const generatorEvents = impactElements.filter((e) => e.generator);
+    const longDuration = [...deemed]
+      .filter((r) => r.hours >= 6)
+      .sort((a, b) => b.hours - a.hours)
+      .slice(0, 5)
+      .map((r) => ({ element: r.element, hours: r.hours, category: r.category, date: r.date }));
+
+    const regional = getOaRegionalSeries(oa, 'circle');
+    const underperforming = regional.labels.map((label, i) => {
+      const total = (regional.shutdown[i] || 0) + (regional.breakdown[i] + regional.tripping[i]);
+      const unitTsa = clamp(100 - total * 0.045, 97.5, 99.9);
+      return { unit: label, level: 'Circle', tsa: unitTsa, target, gap: unitTsa - target };
+    }).filter((u) => u.tsa < target).sort((a, b) => a.gap - b.gap);
+
+    return {
+      tsa,
+      target,
+      gap,
+      totalHours,
+      countableHours,
+      effectiveHours,
+      netHours,
+      tripping: { count: trippingRows.length || Math.round(12 + seed % 8), hours: sumHours(trippingRows) * scale || 24.6 },
+      breakdown: { count: breakdownRows.length || Math.round(8 + seed % 6), hours: sumHours(breakdownRows) * scale || 16.8 },
+      shutdown: { count: shutdownRows.length || Math.round(6 + seed % 5), hours: sumHours(shutdownRows) * scale || 11.0 },
+      planned: { count: plannedRows.length || 7, hours: sumHours(plannedRows) * scale || 14.2 },
+      unplanned: { count: unplannedRows.length || 31, hours: sumHours(unplannedRows) * scale || 38.2 },
+      waterfall,
+      durationBuckets,
+      impactElements,
+      generatorEvents: {
+        count: generatorEvents.length || 4,
+        hours: generatorEvents.reduce((s, e) => s + e.hours, 0) || 18.5,
+      },
+      longDuration,
+      underperforming,
+    };
+  }
+
+  function getOaActiveScopeLabel() {
+    const parts = [];
+    const zone = getFilterZone();
+    const circle = getFilterCircle();
+    const division = getFilterDivision();
+    const subs = getSubstationsForFilter();
+    const ss = !isFilterAll(state.filters.substation) ? subs[state.filters.substation] : null;
+    if (ss) parts.push(getSubstationLabel(ss));
+    else if (division) parts.push(division.label);
+    else if (circle) parts.push(circle.label);
+    else if (zone) parts.push(zone.label);
+    else parts.push('All Zones');
+    const preset = state.filters.dateRange?.preset || 'last7';
+    const presetLabels = {
+      last7: 'Last 7 Days',
+      thisMonth: 'Month-to-Date',
+      thisYear: 'YTD',
+      allTime: 'All Time',
+    };
+    parts.push(presetLabels[preset] || 'Custom Range');
+    return parts.join(' · ');
+  }
+
+  function applyOaKpiTone(cardEl, tone) {
+    if (!cardEl) return;
+    cardEl.classList.remove('tsa-kpi-tone-good', 'tsa-kpi-tone-warn', 'tsa-kpi-tone-bad');
+    if (tone) cardEl.classList.add(`tsa-kpi-tone-${tone}`);
   }
 
   const VIEW_TITLES = {
@@ -1342,6 +1590,43 @@
           labels: ['AC Lines', 'ICTs', 'Reactors + SVC'],
           values: [52, 28, 20],
         },
+        trippingHierarchy: {
+          zones: [
+            { key: 'zone-hisar', label: 'Hisar', trips: 9 },
+            { key: 'zone-panchkula', label: 'Panchkula', trips: 16 },
+          ],
+          circles: {
+            'zone-hisar': [
+              { key: 'circle-ts-hisar', label: 'TS Hisar', trips: 4 },
+              { key: 'circle-ts-rohtak', label: 'TS Rohtak', trips: 5 },
+            ],
+            'zone-panchkula': [
+              { key: 'circle-ts-karnal', label: 'TS Karnal', trips: 7 },
+              { key: 'circle-ts-ambala', label: 'TS Ambala', trips: 4 },
+              { key: 'circle-ts-panchkula', label: 'TS Panchkula', trips: 5 },
+            ],
+          },
+          divisions: {
+            'circle-ts-karnal': [
+              { key: 'div-ts-karnal', label: 'TS Karnal', trips: 5 },
+              { key: 'div-ts-panipat', label: 'TS Panipat', trips: 2 },
+            ],
+            'circle-ts-hisar': [
+              { key: 'div-ts-hisar', label: 'TS Hisar', trips: 3 },
+              { key: 'div-ts-fatehabad', label: 'TS Fatehabad', trips: 1 },
+            ],
+          },
+          substations: {
+            'div-ts-panipat': [
+              { label: '132kV Panipat - Samalkha', trips: 4 },
+              { label: '132kV Panipat - Israna', trips: 1 },
+            ],
+            'div-ts-karnal': [
+              { label: '220kV Karnal - Kurukshetra', trips: 3 },
+              { label: '132kV Karnal - Indri', trips: 2 },
+            ],
+          },
+        },
         notes: [
           { ref: '§4.A —', text: 'TAFM computed as availability of transmission elements over the month, net of allowable deductions.' },
           { ref: '§G —', text: 'Planned outages deducted only when approved schedule and return-to-service criteria are met.' },
@@ -1564,6 +1849,7 @@
         deemedExempt: {
           rows: [
             {
+              id: 'de-001',
               date: '2025-08-04',
               element: '400kV Kaithal-Patiala',
               category: 'Shutdown',
@@ -3643,7 +3929,97 @@
       });
     }
 
-    state.charts.tsaAvailCategory = new Chart(document.getElementById('tsa-avail-category-chart'), {
+    const tsaExecTrippingEl = document.getElementById('tsa-exec-tripping-chart');
+    if (tsaExecTrippingEl) {
+      const zoneSeries = tsa.trippingHierarchy?.zones || [];
+      state.charts.tsaExecTripping = new Chart(tsaExecTrippingEl, {
+        type: 'bar',
+        data: {
+          labels: zoneSeries.map((z) => z.label),
+          datasets: [{
+            label: 'Trips',
+            data: zoneSeries.map((z) => z.trips),
+            backgroundColor: zoneSeries.map((_, i) => (i === 0 ? CHART_PRIMARY : 'rgba(14, 165, 233, 0.45)')),
+            borderRadius: 6,
+            maxBarThickness: 48,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: d.tooltip },
+          scales: {
+            x: { ticks: d.ticks, grid: { display: false } },
+            y: { min: 0, ticks: { ...d.ticks, precision: 0 }, grid: d.grid },
+          },
+          onClick(evt, elements) {
+            if (!elements.length) return;
+            const idx = elements[0].index;
+            const item = zoneSeries[idx];
+            if (!item?.key) return;
+            openTsaTrippingModal('circle', item.key, item.label);
+          },
+        },
+      });
+    }
+
+    const tsaExecOutageEl = document.getElementById('tsa-exec-outage-class-chart');
+    if (tsaExecOutageEl) {
+      state.charts.tsaExecOutageClass = new Chart(tsaExecOutageEl, {
+        type: 'doughnut',
+        data: {
+          labels: ['Shutdown', 'Breakdown', 'Tripping'],
+          datasets: [{
+            data: [0, 0, 0],
+            backgroundColor: [OA_CIRCLE_PALETTE.shutdown, OA_CIRCLE_PALETTE.breakdown, OA_CIRCLE_PALETTE.tripping],
+            borderWidth: 0,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '62%',
+          plugins: {
+            legend: { position: 'bottom', labels: { color: d.color, font: { size: 11 }, usePointStyle: true } },
+            tooltip: {
+              ...d.tooltip,
+              callbacks: {
+                label(ctx) {
+                  const total = (ctx.dataset.data || []).reduce((s, v) => s + v, 0) || 1;
+                  const pct = ((ctx.raw / total) * 100).toFixed(1);
+                  return `${ctx.label}: ${pct}%`;
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+
+    const tsaTrippingDrillEl = document.getElementById('tsa-tripping-drill-chart');
+    if (tsaTrippingDrillEl) {
+      state.charts.tsaTrippingDrill = new Chart(tsaTrippingDrillEl, {
+        type: 'bar',
+        data: { labels: [], datasets: [{ label: 'Trips', data: [], backgroundColor: CHART_PRIMARY, borderRadius: 6, maxBarThickness: 42 }] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: d.tooltip },
+          scales: {
+            x: { ticks: { ...d.ticks, maxRotation: 35 }, grid: { display: false } },
+            y: { min: 0, ticks: { ...d.ticks, precision: 0 }, grid: d.grid },
+          },
+          onClick(evt, elements) {
+            handleTsaTrippingDrillClick(elements);
+          },
+        },
+      });
+    }
+
+    // Legacy availability category chart (other TSA views may reference)
+    const tsaAvailEl = document.getElementById('tsa-avail-category-chart');
+    if (tsaAvailEl) {
+    state.charts.tsaAvailCategory = new Chart(tsaAvailEl, {
       type: 'doughnut',
       data: {
         labels: tsa.category.labels,
@@ -3666,6 +4042,7 @@
         },
       },
     });
+    }
 
     // TSA — AC Transmission Lines charts
     state.charts.tsaAcAvail = new Chart(document.getElementById('tsa-ac-avail-chart'), {
@@ -3927,73 +4304,180 @@
     // TSA — Outage Analytics
     state.charts.tsaOutageCircle = buildTsaOutageCircleChart();
 
-    state.charts.tsaOutageTafm = buildTsaOutageTafmChart();
-
-    state.charts.tsaOutageReasons = new Chart(document.getElementById('tsa-outage-reasons-chart'), {
-      type: 'bar',
-      data: {
-        labels: [],
-        datasets: [{
-          label: 'Outage hours',
-          data: [],
-          backgroundColor: CHART_TEAL,
-          borderRadius: 4,
-          maxBarThickness: 16,
-        }],
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: d.tooltip },
-        scales: {
-          x: {
-            min: 0,
-            ticks: { ...d.ticks, callback(v) { return `${v}h`; } },
-            grid: d.grid,
-            border: { display: false },
+    const oaWaterfallEl = document.getElementById('oa-waterfall-chart');
+    if (oaWaterfallEl) {
+      state.charts.oaWaterfall = new Chart(oaWaterfallEl, {
+        type: 'bar',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Availability %',
+            data: [],
+            backgroundColor: [
+              'rgba(148, 163, 184, 0.45)',
+              OA_CIRCLE_PALETTE.shutdown,
+              OA_CIRCLE_PALETTE.breakdown,
+              OA_CIRCLE_PALETTE.tripping,
+              '#F59E0B',
+              '#94A3B8',
+              CHART_SUCCESS,
+            ],
+            borderRadius: 6,
+            maxBarThickness: 52,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...d.tooltip,
+              callbacks: {
+                label(ctx) {
+                  const range = ctx.raw;
+                  if (!Array.isArray(range)) return `${ctx.parsed.y}%`;
+                  return `${range[0].toFixed(2)}% → ${range[1].toFixed(2)}%`;
+                },
+              },
+            },
           },
-          y: {
-            ticks: { ...d.ticks, font: { size: 10 } },
-            grid: { display: false },
-            border: { display: false },
+          scales: {
+            x: { ticks: d.ticks, grid: { display: false } },
+            y: {
+              min: 97.5,
+              max: 100,
+              ticks: { ...d.ticks, callback(v) { return `${v}%`; } },
+              grid: d.grid,
+            },
           },
         },
-      },
-    });
+      });
+    }
 
-    state.charts.tsaOutagePareto = new Chart(document.getElementById('tsa-outage-pareto-chart'), {
-      type: 'bar',
-      data: {
-        labels: [],
-        datasets: [{
-          label: 'Non-availability hours',
-          data: [],
-          backgroundColor: [],
-          borderRadius: 4,
-          maxBarThickness: 16,
-        }],
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: d.tooltip },
-        scales: {
-          x: {
-            min: 0,
-            ticks: { ...d.ticks, callback(v) { return `${v}h`; } },
-            grid: d.grid,
-            border: { display: false },
-          },
-          y: {
-            ticks: { ...d.ticks, font: { size: 10 } },
-            grid: { display: false },
-            border: { display: false },
+    const oaDurationEl = document.getElementById('oa-duration-chart');
+    if (oaDurationEl) {
+      state.charts.oaDuration = new Chart(oaDurationEl, {
+        type: 'bar',
+        data: {
+          labels: ['< 6 hrs', '6–12 hrs', '12–24 hrs', '> 1 Day'],
+          datasets: [{
+            label: 'Outage events',
+            data: [0, 0, 0, 0],
+            backgroundColor: [CHART_SUCCESS, CHART_TEAL, CHART_WARNING, CHART_DANGER],
+            borderRadius: 6,
+            maxBarThickness: 56,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: d.tooltip },
+          scales: {
+            x: { ticks: d.ticks, grid: { display: false } },
+            y: { min: 0, ticks: { ...d.ticks, precision: 0 }, grid: d.grid },
           },
         },
-      },
-    });
+      });
+    }
+
+    const paretoEl = document.getElementById('tsa-outage-pareto-chart');
+    if (paretoEl) {
+      state.charts.tsaOutagePareto = new Chart(paretoEl, {
+        data: {
+          labels: [],
+          datasets: [
+            {
+              type: 'bar',
+              label: 'Loss hours',
+              data: [],
+              backgroundColor: [],
+              borderRadius: 4,
+              maxBarThickness: 16,
+              yAxisID: 'y',
+            },
+            {
+              type: 'line',
+              label: 'Cumulative %',
+              data: [],
+              borderColor: CHART_DANGER,
+              backgroundColor: 'transparent',
+              borderWidth: 2,
+              pointRadius: 3,
+              tension: 0.25,
+              xAxisID: 'x1',
+            },
+          ],
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: true, labels: { color: d.color, font: { size: 11 } } }, tooltip: d.tooltip },
+          scales: {
+            x: {
+              min: 0,
+              ticks: { ...d.ticks, callback(v) { return `${v}h`; } },
+              grid: d.grid,
+              border: { display: false },
+            },
+            y: {
+              ticks: { ...d.ticks, font: { size: 10 } },
+              grid: { display: false },
+              border: { display: false },
+            },
+            x1: {
+              position: 'top',
+              min: 0,
+              max: 100,
+              ticks: { ...d.ticks, callback(v) { return `${v}%`; } },
+              grid: { drawOnChartArea: false },
+            },
+          },
+        },
+      });
+    }
+
+    const tsaOutageTafmEl = document.getElementById('tsa-outage-tafm-chart');
+    if (tsaOutageTafmEl) {
+      state.charts.tsaOutageTafm = buildTsaOutageTafmChart();
+    }
+
+    const tsaOutageReasonsEl = document.getElementById('tsa-outage-reasons-chart');
+    if (tsaOutageReasonsEl) {
+      state.charts.tsaOutageReasons = new Chart(tsaOutageReasonsEl, {
+        type: 'bar',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Outage hours',
+            data: [],
+            backgroundColor: CHART_TEAL,
+            borderRadius: 4,
+            maxBarThickness: 16,
+          }],
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: d.tooltip },
+          scales: {
+            x: {
+              min: 0,
+              ticks: { ...d.ticks, callback(v) { return `${v}h`; } },
+              grid: d.grid,
+              border: { display: false },
+            },
+            y: {
+              ticks: { ...d.ticks, font: { size: 10 } },
+              grid: { display: false },
+              border: { display: false },
+            },
+          },
+        },
+      });
+    }
 
     // TSA — Deemed / Exempt Register
     state.charts.tsaDeemedCategory = new Chart(document.getElementById('tsa-deemed-category-chart'), {
@@ -4049,12 +4533,162 @@
     return `${s} sec ago`;
   }
 
+  const TSA_OUTAGE_EDIT_ROLES = new Set(['Super Admin', 'Circle Manager', 'O&M Engineer']);
+
+  function canEditTsaOutage() {
+    return TSA_OUTAGE_EDIT_ROLES.has(state.currentUser?.role);
+  }
+
+  function getTsaDeemedRowKey(row) {
+    return row.id || `${row.date}|${row.element}`;
+  }
+
+  function filterTsaDeemedRows(rows, filter = state.tsaDeemedFilter) {
+    if (filter === 'countable') return rows.filter((r) => r.countable === 'Counted');
+    if (filter === 'exempt') return rows.filter((r) => r.countable === 'Deemed exempt');
+    return rows;
+  }
+
+  function getTsaOutageClassification(rows) {
+    const totals = { Shutdown: 0, Breakdown: 0, Tripping: 0 };
+    rows.forEach((r) => {
+      if (totals[r.category] != null) totals[r.category] += r.hours;
+    });
+    const sum = Object.values(totals).reduce((a, b) => a + b, 0) || 1;
+    return {
+      shutdownPct: (totals.Shutdown / sum) * 100,
+      breakdownPct: (totals.Breakdown / sum) * 100,
+      trippingPct: (totals.Tripping / sum) * 100,
+      values: [totals.Shutdown, totals.Breakdown, totals.Tripping],
+    };
+  }
+
+  function getTsaMaxTrippingLocation() {
+    const rows = getTsaTrippingRows();
+    if (!rows.length) return { name: '—', circle: '—', trips: 0 };
+    const top = rows.reduce((best, row) => (row.z > best.z ? row : best), rows[0]);
+    return { name: top.name, circle: top.circle, trips: top.z };
+  }
+
+  function applyTsaKpiTone(cardEl, tone) {
+    if (!cardEl) return;
+    cardEl.classList.remove('tsa-kpi-tone-good', 'tsa-kpi-tone-warn', 'tsa-kpi-tone-bad');
+    if (tone) cardEl.classList.add(`tsa-kpi-tone-${tone}`);
+  }
+
+  function getTsaTrippingDrillSeries(drill = state.tsaTrippingDrill) {
+    const h = state.data?.tsa?.trippingHierarchy;
+    if (!h || !drill) return { level: 'Zone', items: [] };
+    if (drill.level === 'zone') return { level: 'Zone', items: h.zones || [] };
+    if (drill.level === 'circle') return { level: 'Circle', items: h.circles?.[drill.parentKey] || [] };
+    if (drill.level === 'division') return { level: 'Division', items: h.divisions?.[drill.parentKey] || [] };
+    return { level: 'Sub Station', items: h.substations?.[drill.parentKey] || [] };
+  }
+
+  function getTsaTrippingDrillBreadcrumb(drill = state.tsaTrippingDrill) {
+    if (!drill?.parentLabel) return 'Zone level';
+    const parts = [];
+    if (drill.zoneLabel) parts.push(drill.zoneLabel);
+    if (drill.circleLabel) parts.push(drill.circleLabel);
+    if (drill.divisionLabel) parts.push(drill.divisionLabel);
+    return parts.length ? parts.join(' → ') : drill.parentLabel;
+  }
+
+  function syncTsaTrippingDrillChart() {
+    const series = getTsaTrippingDrillSeries();
+    const chart = state.charts.tsaTrippingDrill;
+    if (!chart) return;
+    chart.data.labels = series.items.map((i) => i.label);
+    chart.data.datasets[0].data = series.items.map((i) => i.trips);
+    chart.data.datasets[0].backgroundColor = series.items.map((_, idx) =>
+      idx === 0 ? CHART_PRIMARY : 'rgba(14, 165, 233, 0.45)'
+    );
+    chart.update('none');
+    const breadcrumb = document.getElementById('tsa-tripping-modal-breadcrumb');
+    if (breadcrumb) breadcrumb.textContent = `${series.level} · ${getTsaTrippingDrillBreadcrumb()}`;
+  }
+
+  function openTsaTrippingModal(level = 'zone', parentKey = null, parentLabel = null, meta = {}) {
+    state.tsaTrippingDrill = {
+      level,
+      parentKey,
+      parentLabel,
+      zoneLabel: meta.zoneLabel || (level === 'zone' ? null : meta.zoneLabel),
+      circleLabel: meta.circleLabel || null,
+      divisionLabel: meta.divisionLabel || null,
+    };
+    if (level === 'circle' && parentLabel) {
+      state.tsaTrippingDrill.zoneLabel = parentLabel;
+    }
+    if (level === 'division' && parentLabel) {
+      state.tsaTrippingDrill.circleLabel = parentLabel;
+    }
+    if (level === 'substation' && parentLabel) {
+      state.tsaTrippingDrill.divisionLabel = parentLabel;
+    }
+    syncTsaTrippingDrillChart();
+    const modal = document.getElementById('tsa-tripping-modal');
+    if (modal) {
+      modal.hidden = false;
+      document.body.classList.add('tsa-modal-open');
+    }
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  }
+
+  function closeTsaTrippingModal() {
+    const modal = document.getElementById('tsa-tripping-modal');
+    if (modal) modal.hidden = true;
+    document.body.classList.remove('tsa-modal-open');
+    state.tsaTrippingDrill = { level: 'zone', parentKey: null };
+  }
+
+  function handleTsaTrippingDrillClick(elements) {
+    if (!elements?.length) return;
+    const drill = state.tsaTrippingDrill || { level: 'zone' };
+    const series = getTsaTrippingDrillSeries(drill);
+    const item = series.items[elements[0].index];
+    if (!item) return;
+    if (drill.level === 'zone' && item.key) {
+      openTsaTrippingModal('circle', item.key, item.label, { zoneLabel: item.label });
+      return;
+    }
+    if (drill.level === 'circle' && item.key) {
+      openTsaTrippingModal('division', item.key, item.label, {
+        zoneLabel: drill.zoneLabel,
+        circleLabel: item.label,
+      });
+      return;
+    }
+    if (drill.level === 'division' && item.key) {
+      openTsaTrippingModal('substation', item.key, item.label, {
+        zoneLabel: drill.zoneLabel,
+        circleLabel: drill.circleLabel,
+        divisionLabel: item.label,
+      });
+    }
+  }
+
+  function setTsaDeemedFilter(filter) {
+    state.tsaDeemedFilter = filter;
+    document.querySelectorAll('[data-tsa-deemed-filter]').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.tsaDeemedFilter === filter);
+    });
+    renderTsaDeemedExempt();
+    renderTsaExecutiveSummary();
+  }
+
+  function findTsaDeemedRow(key) {
+    return (state.data?.tsa?.deemedExempt?.rows || []).find((r) => getTsaDeemedRowKey(r) === key);
+  }
+
   function renderTsaExecutiveSummary() {
     const tsa = state.data?.tsa;
     if (!tsa) return;
 
-    const totalElements = tsa.elements.lines + tsa.elements.icts + tsa.elements.reactive;
     const gapPp = tsa.monthlyTafm - tsa.target;
+    const deemedRows = filterTsaDeemedRows([...(tsa.deemedExempt?.rows || [])]);
+    const outageClass = getTsaOutageClassification(deemedRows);
+    const maxTrip = getTsaMaxTrippingLocation();
 
     const setText = (id, text) => {
       const el = document.getElementById(id);
@@ -4062,23 +4696,28 @@
     };
 
     setText('tsa-kpi-tafm', `${tsa.monthlyTafm.toFixed(2)}%`);
-    setText('tsa-kpi-gap', `${gapPp.toFixed(2)} pp`);
-    setText('tsa-kpi-elements', String(totalElements));
+    setText('tsa-kpi-herc', `Target: ${tsa.target.toFixed(1)}%`);
+    setText('tsa-kpi-herc-var', `${gapPp >= 0 ? '+' : ''}${gapPp.toFixed(2)} pp vs actual`);
+    setText('tsa-kpi-max-tripping', maxTrip.name);
+    setText('tsa-kpi-max-tripping-meta', `${maxTrip.circle} · ${maxTrip.trips} trips`);
     setText('tsa-kpi-outage', `${tsa.countableOutageHr.toFixed(1)} hr`);
-    setText('tsa-kpi-repeat', String(tsa.repeatTripElements));
+    setText('tsa-kpi-outage-status', tsa.countableOutageHr > 90 ? 'Above monthly band' : 'Within monthly band');
+    setText('tsa-kpi-tafm-status', gapPp >= 0 ? 'Above HERC target' : 'Below HERC target');
     setText('tsa-gauge-value', `${tsa.monthlyTafm.toFixed(2)}%`);
     setText('tsa-gauge-period', tsa.periodLabel);
+    setText('tsa-pct-shutdown', `${outageClass.shutdownPct.toFixed(1)}%`);
+    setText('tsa-pct-breakdown', `${outageClass.breakdownPct.toFixed(1)}%`);
+    setText('tsa-pct-tripping', `${outageClass.trippingPct.toFixed(1)}%`);
+    setText('tsa-exec-tripping-scope', 'Zone comparison · click a bar to drill down');
 
-    const elementsSubtitle = document.querySelector('#view-tsa-executive-summary .kpi-card:nth-child(3) .kpi-subtitle');
-    if (elementsSubtitle) {
-      elementsSubtitle.textContent = `${tsa.elements.lines} lines · ${tsa.elements.icts} ICTs · ${tsa.elements.reactive} reactive`;
-    }
+    applyTsaKpiTone(document.getElementById('tsa-kpi-tafm-card'), gapPp >= 0.5 ? 'good' : gapPp >= 0 ? 'warn' : 'bad');
+    applyTsaKpiTone(document.getElementById('tsa-kpi-herc-card'), gapPp >= 0 ? 'good' : 'bad');
+    applyTsaKpiTone(document.getElementById('tsa-kpi-max-tripping-card'), maxTrip.trips >= 4 ? 'bad' : maxTrip.trips >= 3 ? 'warn' : 'good');
+    applyTsaKpiTone(document.getElementById('tsa-kpi-outage-card'), tsa.countableOutageHr > 90 ? 'warn' : 'good');
 
-    const notesEl = document.getElementById('tsa-regulatory-notes');
-    if (notesEl && Array.isArray(tsa.notes)) {
-      notesEl.innerHTML = tsa.notes.map((n) =>
-        `<li><span class="tsa-note-ref">${n.ref}</span> ${n.text}</li>`
-      ).join('');
+    const gaugeValueEl = document.getElementById('tsa-gauge-value');
+    if (gaugeValueEl) {
+      gaugeValueEl.style.color = gapPp >= 0 ? 'var(--success)' : 'var(--danger)';
     }
 
     const gaugeFloor = 97;
@@ -4095,13 +4734,29 @@
         tsa.monthlyTafm - gaugeFloor,
         gaugeSpan - (tsa.monthlyTafm - gaugeFloor),
       ];
+      state.charts.tsaTafmGauge.data.datasets[0].backgroundColor = [
+        gapPp >= 0 ? CHART_SUCCESS : CHART_DANGER,
+        getChartColors().track,
+      ];
       state.charts.tsaTafmGauge.update('none');
+    }
+    if (state.charts.tsaExecTripping) {
+      const zones = tsa.trippingHierarchy?.zones || [];
+      state.charts.tsaExecTripping.data.labels = zones.map((z) => z.label);
+      state.charts.tsaExecTripping.data.datasets[0].data = zones.map((z) => z.trips);
+      state.charts.tsaExecTripping.update('none');
+    }
+    if (state.charts.tsaExecOutageClass) {
+      state.charts.tsaExecOutageClass.data.datasets[0].data = outageClass.values.map((v) => Number(v.toFixed(2)));
+      state.charts.tsaExecOutageClass.update('none');
     }
     if (state.charts.tsaAvailCategory) {
       state.charts.tsaAvailCategory.data.labels = tsa.category.labels;
       state.charts.tsaAvailCategory.data.datasets[0].data = tsa.category.values.slice();
       state.charts.tsaAvailCategory.update('none');
     }
+
+    renderTsaDeemedRows('tsa-exec-deemed-body', deemedRows, { compact: true });
   }
 
   function enrichTsaAcLine(row) {
@@ -4384,61 +5039,132 @@
     const oa = state.data?.tsa?.outageAnalytics;
     if (!oa) return;
 
+    const snap = buildOaDashboardSnapshot(oa);
+    const setText = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    setText('oa-active-scope', getOaActiveScopeLabel());
+    setText('oa-kpi-tsa', `${snap.tsa.toFixed(2)}%`);
+    setText('oa-kpi-target', `${snap.target.toFixed(1)}%`);
+    setText('oa-kpi-gap', `${snap.gap >= 0 ? '+' : ''}${snap.gap.toFixed(2)} pp gap`);
+    setText('oa-kpi-total-hr', `${snap.totalHours.toFixed(1)} hr`);
+    setText('oa-kpi-net-hr', `Net ${snap.netHours.toFixed(1)} hr · Effective ${snap.effectiveHours.toFixed(1)} hr`);
+    setText('oa-kpi-tripping', `${snap.tripping.count} · ${snap.tripping.hours.toFixed(1)} hr`);
+    setText('oa-kpi-breakdown', `${snap.breakdown.count} · ${snap.breakdown.hours.toFixed(1)} hr`);
+    setText('oa-kpi-shutdown', `${snap.shutdown.count} · ${snap.shutdown.hours.toFixed(1)} hr`);
+    setText('oa-kpi-planned', `${snap.planned.count} · ${snap.planned.hours.toFixed(1)} hr`);
+    setText('oa-kpi-unplanned', `Unplanned ${snap.unplanned.count} · ${snap.unplanned.hours.toFixed(1)} hr`);
+
+    applyOaKpiTone(document.getElementById('oa-kpi-tsa-card'), snap.gap >= 0.5 ? 'good' : snap.gap >= 0 ? 'warn' : 'bad');
+    applyOaKpiTone(document.getElementById('oa-kpi-target-card'), snap.gap >= 0 ? 'good' : 'bad');
+    applyOaKpiTone(document.getElementById('oa-kpi-hours-card'), snap.totalHours > 80 ? 'warn' : 'good');
+    applyOaKpiTone(document.getElementById('oa-kpi-tripping-card'), snap.tripping.count >= 15 ? 'bad' : snap.tripping.count >= 10 ? 'warn' : 'good');
+    applyOaKpiTone(document.getElementById('oa-kpi-breakdown-card'), snap.breakdown.count >= 12 ? 'warn' : 'good');
+    applyOaKpiTone(document.getElementById('oa-kpi-shutdown-card'), 'good');
+    applyOaKpiTone(document.getElementById('oa-kpi-planned-card'), snap.unplanned.hours > snap.planned.hours ? 'warn' : 'good');
+
+    const regional = getOaRegionalSeries(oa, state.oaRegionalLevel);
+    setText('oa-regional-scope', `Grouped by ${regional.level} · contribution hours`);
+
     if (state.charts.tsaOutageCircle) {
-      const series = getOutageByCircleChartSeries(oa);
-      state.charts.tsaOutageCircle.data.labels = series.labels;
-      state.charts.tsaOutageCircle.data.datasets[0].data = series.shutdown.slice();
-      state.charts.tsaOutageCircle.data.datasets[1].data = series.breakdown.slice();
-      state.charts.tsaOutageCircle.data.datasets[2].data = series.tripping.slice();
+      state.charts.tsaOutageCircle.data.labels = regional.labels;
+      state.charts.tsaOutageCircle.data.datasets[0].data = regional.shutdown.slice();
+      state.charts.tsaOutageCircle.data.datasets[1].data = regional.breakdown.slice();
+      state.charts.tsaOutageCircle.data.datasets[2].data = regional.tripping.slice();
       state.charts.tsaOutageCircle.update('none');
     }
 
-    if (state.charts.tsaOutageTafm) {
-      const { low, high } = getTafmThresholds(oa);
-      const values = oa.tafmTrend.values.slice();
-      const minV = Math.min(...values);
-      const maxV = Math.max(...values);
-      const { peakIdx, lowIdx } = getTafmExtrema(values);
-      const ds = state.charts.tsaOutageTafm.data.datasets[0];
-      state.charts.tsaOutageTafm.data.labels = oa.tafmTrend.labels;
-      ds.data = values;
-      ds.pointBackgroundColor = (ctx) => tafmValueColor(values[ctx.dataIndex], low, high, minV, maxV);
-      ds.pointRadius = (ctx) => (ctx.dataIndex === peakIdx || ctx.dataIndex === lowIdx ? 0 : 3.5);
-      ds.segment = {
-        borderColor: (ctx) => {
-          const v0 = ctx.p0.parsed.y;
-          const v1 = ctx.p1.parsed.y;
-          if (v0 < low || v0 > high || v1 < low || v1 > high) return TAFM_ALERT;
-          return tafmValueColor((v0 + v1) / 2, low, high, minV, maxV);
-        },
-      };
-      state.charts.tsaOutageTafm.data.datasets[1].data = oa.tafmTrend.labels.map(() => oa.target);
-      state.charts.tsaOutageTafm.data.datasets[1].label = `HERC target ${oa.target}%`;
-      state.charts.tsaOutageTafm.options.plugins.tafmPremiumMarkers = {
-        lowThreshold: low,
-        highThreshold: high,
-      };
-      state.charts.tsaOutageTafm.update('none');
+    if (state.charts.oaWaterfall) {
+      const wf = snap.waterfall.steps;
+      state.charts.oaWaterfall.data.labels = wf.map((s) => s.label);
+      state.charts.oaWaterfall.data.datasets[0].data = wf.map((s) => s.range);
+      state.charts.oaWaterfall.update('none');
     }
 
-    if (state.charts.tsaOutageReasons) {
-      const reasons = [...oa.reasons].sort((a, b) => b.hours - a.hours);
-      state.charts.tsaOutageReasons.data.labels = reasons.map((r) => r.label);
-      state.charts.tsaOutageReasons.data.datasets[0].data = reasons.map((r) => r.hours);
-      state.charts.tsaOutageReasons.update('none');
+    if (state.charts.oaDuration) {
+      state.charts.oaDuration.data.labels = snap.durationBuckets.labels;
+      state.charts.oaDuration.data.datasets[0].data = snap.durationBuckets.values;
+      state.charts.oaDuration.update('none');
     }
 
     if (state.charts.tsaOutagePareto) {
-      const pareto = [...oa.pareto].sort((a, b) => b.hours - a.hours);
-      state.charts.tsaOutagePareto.data.labels = pareto.map((r) => r.label);
-      state.charts.tsaOutagePareto.data.datasets[0].data = pareto.map((r) => r.hours);
-      state.charts.tsaOutagePareto.data.datasets[0].backgroundColor = pareto.map((_, i) => {
-        if (i === 0) return CHART_DANGER;
+      const pareto = snap.impactElements.slice(0, 8);
+      const hours = pareto.map((r) => r.hours);
+      const total = hours.reduce((s, v) => s + v, 0) || 1;
+      let cumulative = 0;
+      const cumPct = hours.map((h) => {
+        cumulative += h;
+        return Number(((cumulative / total) * 100).toFixed(1));
+      });
+      state.charts.tsaOutagePareto.data.labels = pareto.map((r) => r.name.replace(/^(\d+kV)\s+/i, ''));
+      state.charts.tsaOutagePareto.data.datasets[0].data = hours;
+      state.charts.tsaOutagePareto.data.datasets[0].backgroundColor = hours.map((_, i) => {
+        if (cumPct[i] <= 80) return CHART_DANGER;
         if (i <= 2) return CHART_WARNING;
         return CHART_PRIMARY;
       });
+      if (state.charts.tsaOutagePareto.data.datasets[1]) {
+        state.charts.tsaOutagePareto.data.datasets[1].data = cumPct;
+      }
       state.charts.tsaOutagePareto.update('none');
     }
+
+    const impactBody = document.getElementById('oa-impact-body');
+    if (impactBody) {
+      impactBody.innerHTML = snap.impactElements.slice(0, 8).map((row, i) => `
+        <tr>
+          <td class="font-mono">${i + 1}</td>
+          <td>${row.name}</td>
+          <td class="font-mono text-right">${row.hours.toFixed(1)}</td>
+          <td class="font-mono text-right">${row.trips}</td>
+          <td class="font-mono text-right">${row.kv}</td>
+          <td class="font-mono text-right oa-impact-score">${row.impact.toFixed(1)}</td>
+        </tr>
+      `).join('');
+    }
+
+    setText('oa-generator-count', `${snap.generatorEvents.count} events`);
+    setText('oa-generator-hours', `${snap.generatorEvents.hours.toFixed(1)} outage hours`);
+
+    const longList = document.getElementById('oa-long-duration-list');
+    if (longList) {
+      longList.innerHTML = snap.longDuration.length
+        ? snap.longDuration.map((item) => `
+          <li class="oa-alert-item">
+            <span class="oa-alert-title">${item.element}</span>
+            <span class="oa-alert-meta">${item.category} · ${item.hours.toFixed(1)} hr · ${item.date}</span>
+          </li>
+        `).join('')
+        : '<li class="oa-alert-item oa-alert-empty">No long-duration outages in scope.</li>';
+    }
+
+    const underList = document.getElementById('oa-underperform-list');
+    if (underList) {
+      underList.innerHTML = snap.underperforming.length
+        ? snap.underperforming.map((u) => `
+          <li class="oa-under-item ${u.gap < -0.5 ? 'is-critical' : 'is-warn'}">
+            <div>
+              <span class="oa-under-name">${u.unit}</span>
+              <span class="oa-under-level">${u.level}</span>
+            </div>
+            <div class="oa-under-metrics">
+              <span class="font-mono">${u.tsa.toFixed(2)}%</span>
+              <span class="oa-under-gap">${u.gap.toFixed(2)} pp</span>
+            </div>
+          </li>
+        `).join('')
+        : '<li class="oa-under-item oa-alert-empty">All units above HERC target in selected scope.</li>';
+    }
+
+    document.querySelectorAll('[data-oa-level]').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.oaLevel === state.oaRegionalLevel);
+    });
+    document.querySelectorAll('[data-oa-cat]').forEach((input) => {
+      const key = input.dataset.oaCat;
+      input.checked = !!state.oaCategoryFilter[key];
+    });
   }
 
   function getTsaDeemedCategoryTotals(rows) {
@@ -4460,18 +5186,59 @@
     return 'is-tripping';
   }
 
-  function renderTsaDeemedExemptTable(rows) {
-    const tbody = document.getElementById('tsa-deemed-body');
+  function renderTsaDeemedCategoryCell(row) {
+    const key = getTsaDeemedRowKey(row);
+    const canEdit = canEditTsaOutage();
+    if (state.tsaDeemedEditingKey === key) {
+      return `
+        <select class="select-sm tsa-category-edit" data-row-key="${key}" aria-label="Edit outage category">
+          <option value="Shutdown"${row.category === 'Shutdown' ? ' selected' : ''}>Shutdown</option>
+          <option value="Breakdown"${row.category === 'Breakdown' ? ' selected' : ''}>Breakdown</option>
+          <option value="Tripping"${row.category === 'Tripping' ? ' selected' : ''}>Tripping</option>
+        </select>`;
+    }
+    return `<span class="tsa-category-pill ${categoryPillClass(row.category)}">${row.category}</span>`;
+  }
+
+  function renderTsaDeemedActionCell(row) {
+    const key = getTsaDeemedRowKey(row);
+    const canEdit = canEditTsaOutage();
+    if (!canEdit) return '<span class="text-muted text-xs">View only</span>';
+    if (state.tsaDeemedEditingKey === key) {
+      return `
+        <div class="tsa-row-actions">
+          <button type="button" class="btn btn-primary btn-sm tsa-save-category" data-row-key="${key}">Save</button>
+          <button type="button" class="btn btn-secondary btn-sm tsa-cancel-edit" data-row-key="${key}">Cancel</button>
+        </div>`;
+    }
+    return `<button type="button" class="btn btn-secondary btn-sm tsa-edit-btn" data-row-key="${key}"><i data-lucide="pencil" class="h-3.5 w-3.5"></i> Edit</button>`;
+  }
+
+  function renderTsaDeemedRows(tbodyId, rows, { compact = false } = {}) {
+    const tbody = document.getElementById(tbodyId);
     if (!tbody) return;
     tbody.innerHTML = rows.map((r) => {
       const attachHtml = r.attach
         ? `<a href="#" class="tsa-attach-link" data-file="${r.attach}"><i data-lucide="paperclip" class="h-3.5 w-3.5"></i>${r.attach}</a>`
         : '';
+      if (compact) {
+        return `
+        <tr>
+          <td class="font-mono">${r.date}</td>
+          <td>${r.element}</td>
+          <td>${renderTsaDeemedCategoryCell(r)}</td>
+          <td>${r.reason}</td>
+          <td class="font-mono text-right">${r.hours.toFixed(1)}</td>
+          <td><span class="tsa-countable ${r.countable === 'Deemed exempt' ? 'is-exempt' : 'is-counted'}">${r.countable}</span></td>
+          <td>${r.remarks || '—'}</td>
+          <td class="text-right">${renderTsaDeemedActionCell(r)}</td>
+        </tr>`;
+      }
       return `
       <tr>
         <td class="font-mono">${r.date}</td>
         <td>${r.element}</td>
-        <td><span class="tsa-category-pill ${categoryPillClass(r.category)}">${r.category}</span></td>
+        <td>${renderTsaDeemedCategoryCell(r)}</td>
         <td>${r.reason}</td>
         <td class="font-mono text-right">${r.hours.toFixed(1)}</td>
         <td>${r.shutdownBy}</td>
@@ -4483,13 +5250,18 @@
             ${attachHtml}
           </div>
         </td>
+        <td class="text-right">${renderTsaDeemedActionCell(r)}</td>
       </tr>`;
     }).join('');
     if (typeof lucide !== 'undefined') lucide.createIcons();
   }
 
+  function renderTsaDeemedExemptTable(rows) {
+    renderTsaDeemedRows('tsa-deemed-body', rows, { compact: false });
+  }
+
   function exportTsaDeemedExemptCsv() {
-    const rows = state.data?.tsa?.deemedExempt?.rows || [];
+    const rows = filterTsaDeemedRows(state.data?.tsa?.deemedExempt?.rows || []);
     const headers = [
       'Date', 'Element', 'Category', 'Reason', 'Hours',
       'Shutdown By', 'WTD', 'Countable', 'Remarks', 'Attach',
@@ -4519,7 +5291,7 @@
     const reg = state.data?.tsa?.deemedExempt;
     if (!reg) return;
 
-    const rows = [...(reg.rows || [])].sort((a, b) => b.date.localeCompare(a.date));
+    const rows = filterTsaDeemedRows([...(reg.rows || [])]).sort((a, b) => b.date.localeCompare(a.date));
     renderTsaDeemedExemptTable(rows);
 
     if (state.charts.tsaDeemedCategory) {
@@ -6732,6 +7504,45 @@
       exportTsaDeemedExemptCsv();
     });
 
+    document.getElementById('tsa-kpi-max-tripping-card')?.addEventListener('click', () => {
+      openTsaTrippingModal('zone');
+    });
+
+    document.querySelectorAll('[data-tsa-deemed-filter]').forEach((btn) => {
+      btn.addEventListener('click', () => setTsaDeemedFilter(btn.dataset.tsaDeemedFilter));
+    });
+
+    document.querySelectorAll('[data-tsa-modal-close]').forEach((btn) => {
+      btn.addEventListener('click', () => closeTsaTrippingModal());
+    });
+
+    document.addEventListener('click', (e) => {
+      const editBtn = e.target.closest('.tsa-edit-btn');
+      if (editBtn) {
+        state.tsaDeemedEditingKey = editBtn.dataset.rowKey;
+        renderTsaDeemedExempt();
+        renderTsaExecutiveSummary();
+        return;
+      }
+      const cancelBtn = e.target.closest('.tsa-cancel-edit');
+      if (cancelBtn) {
+        state.tsaDeemedEditingKey = null;
+        renderTsaDeemedExempt();
+        renderTsaExecutiveSummary();
+        return;
+      }
+      const saveBtn = e.target.closest('.tsa-save-category');
+      if (saveBtn) {
+        const key = saveBtn.dataset.rowKey;
+        const row = findTsaDeemedRow(key);
+        const select = document.querySelector(`.tsa-category-edit[data-row-key="${CSS.escape(key)}"]`);
+        if (row && select) row.category = select.value;
+        state.tsaDeemedEditingKey = null;
+        renderTsaDeemedExempt();
+        renderTsaExecutiveSummary();
+      }
+    });
+
     document.getElementById('tsa-tripping-export-csv')?.addEventListener('click', () => {
       exportTsaTrippingRegisterCsv();
     });
@@ -6743,6 +7554,22 @@
       if (state.charts.tsaOutageCircle) {
         state.charts.tsaOutageCircle.update();
       }
+    });
+
+    document.querySelectorAll('[data-oa-level]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.oaRegionalLevel = btn.dataset.oaLevel;
+        renderTsaOutageAnalytics();
+      });
+    });
+
+    document.querySelectorAll('[data-oa-cat]').forEach((input) => {
+      input.addEventListener('change', () => {
+        const key = input.dataset.oaCat;
+        if (!key) return;
+        state.oaCategoryFilter[key] = input.checked;
+        renderTsaOutageAnalytics();
+      });
     });
 
     document.getElementById('tsa-deemed-body')?.addEventListener('click', (e) => {
