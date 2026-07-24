@@ -2034,7 +2034,34 @@
     { key: '2-5y', label: '> 2 Year < 5 Years', color: '#EC4899' },
     { key: '>5y', label: '> Greater Than 5 Years', color: '#06B6D4' },
   ];
-  const INVENTORY_DD_CLASS_COLORS = ['#3B82F6', '#F97316', '#06B6D4', '#86EFAC', '#EAB308'];
+  const INVENTORY_DD_CLASS_COLORS = ['#3B82F6', '#F97316', '#06B6D4', '#22C55E', '#EAB308'];
+
+  function formatInvCr(value) {
+    return `₹${Number(value).toFixed(2)} Cr.`;
+  }
+
+  function renderInvDdClassLegend(classification) {
+    const legend = document.getElementById('inv-dd-class-legend');
+    if (!legend || !classification) return;
+    const { labels, percentages, values } = classification;
+    legend.innerHTML = labels.map((label, i) => {
+      const color = INVENTORY_DD_CLASS_COLORS[i % INVENTORY_DD_CLASS_COLORS.length];
+      const pct = Number(percentages[i]).toFixed(1);
+      const amount = formatInvCr(values[i]);
+      return `
+        <li class="donut-split-legend-item inv-dd-class-legend-item">
+          <span class="donut-split-legend-bar" style="background:${color}" aria-hidden="true"></span>
+          <div class="donut-split-legend-text inv-dd-class-legend-text">
+            <span class="inv-dd-class-legend-name">${label}</span>
+            <span class="inv-dd-class-legend-metrics">
+              <span class="inv-dd-class-legend-pct">${pct}%</span>
+              <span class="inv-dd-class-legend-sep" aria-hidden="true">·</span>
+              <span class="inv-dd-class-legend-amount">${amount}</span>
+            </span>
+          </div>
+        </li>`;
+    }).join('');
+  }
   const INV_STORE_HEALTHY_COLOR = '#3A7BD5';
   const INV_STORE_SCRAP_COLOR = '#FF6A00';
   const INV_STORE_LABEL_MIN_PX = 38;
@@ -2144,8 +2171,8 @@
       `Site Store,${s.siteStore.total},${s.siteStore.healthy},${s.siteStore.capital},${s.siteStore.om},${((s.siteStore.healthy / s.siteStore.total) * 100).toFixed(1)}`,
       `Total,${s.total.total},${s.total.healthy},${s.total.capital},${s.total.om},${((s.total.healthy / s.total.total) * 100).toFixed(1)}`,
       '',
-      'DD Store Classification,Percentage',
-      ...inv.ddClassification.labels.map((label, i) => `${label},${inv.ddClassification.values[i]}`),
+      'DD Store Classification,Percentage,Value (Cr.)',
+      ...inv.ddClassification.labels.map((label, i) => `${label},${inv.ddClassification.percentages[i]},${inv.ddClassification.values[i]}`),
       '',
       'Store,Healthy (Cr.),Scrap (Cr.)',
       ...inv.storeBreakdown.labels.map((label, i) => `${label},${inv.storeBreakdown.healthy[i]},${inv.storeBreakdown.scrap[i]}`),
@@ -2201,8 +2228,10 @@
         total: { total: 203.62, healthy: 176.28, capital: 113.07, om: 63.22 },
       },
       ddClassification: {
+        baseline: 71.77,
         labels: ['Equipments', 'Scrap', 'Dismantled Healthy Material', 'Spares', 'Scrap-Decommissioned'],
-        values: [67.6, 26.9, 3.7, 1.7, 0.1],
+        percentages: [67.6, 26.9, 3.7, 1.7, 0.1],
+        values: [48.52, 19.31, 2.65, 1.22, 0.07],
       },
       storeBreakdown: {
         labels: [
@@ -5489,7 +5518,19 @@
           responsive: true,
           maintainAspectRatio: false,
           cutout: '78%',
-          plugins: { legend: { display: false }, tooltip: d.tooltip },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...d.tooltip,
+              callbacks: {
+                label(ctx) {
+                  const pct = inv.ddClassification.percentages[ctx.dataIndex];
+                  const val = Number(ctx.parsed).toFixed(2);
+                  return ` ${ctx.label}: ${pct}% · ₹${val} Cr.`;
+                },
+              },
+            },
+          },
         },
       });
     }
@@ -5741,16 +5782,18 @@
     updateInventoryKpiCard('site', s.siteStore);
     updateInventoryKpiCard('total', s.total);
 
-    renderDonutSplitLegend(
-      'inv-dd-class-legend',
-      inv.ddClassification.labels,
-      inv.ddClassification.values,
-      INVENTORY_DD_CLASS_COLORS,
-      { decimals: 1 }
-    );
+    renderInvDdClassLegend(inv.ddClassification);
+    const centerLabel = document.querySelector('.inv-dd-class-center-label');
+    const centerValue = document.querySelector('.inv-dd-class-center-value');
+    const centerShare = document.querySelector('.inv-dd-class-center-share');
+    const baseline = inv.ddClassification.baseline ?? s.ddStore.total;
+    if (centerLabel) centerLabel.textContent = 'DD Store Total';
+    if (centerValue) centerValue.textContent = formatInvCr(baseline);
+    if (centerShare) centerShare.textContent = '100% Share';
     if (state.charts.invDdClass) {
       state.charts.invDdClass.data.labels = inv.ddClassification.labels;
       state.charts.invDdClass.data.datasets[0].data = inv.ddClassification.values.slice();
+      state.charts.invDdClass.data.datasets[0].backgroundColor = INVENTORY_DD_CLASS_COLORS;
       state.charts.invDdClass.update('none');
     }
     if (state.charts.invStoreBreakdown) {
@@ -8721,6 +8764,11 @@
     const filterToolbar = document.querySelector('.filter-toolbar');
     if (filterToolbar) {
       filterToolbar.hidden = viewId === 'settings' || String(viewId).startsWith('inventory-');
+    }
+
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) {
+      mainContent.classList.toggle('main-content--inventory-fit', viewId === 'inventory-overview');
     }
 
     const invExportBtn = document.getElementById('inv-export-report');

@@ -45,6 +45,24 @@
     inventoryFy: 'all',
     inventoryStoreType: 'all',
     inventoryRequestType: 'all',
+    invCategoryLevel: 'circle',
+    invCategoryFilter: {
+      equipments: true,
+      dismantledHealthy: true,
+      packaging: true,
+      scrap: true,
+      scrapDecommissioned: true,
+      spares: true,
+      consumables: true,
+    },
+    invCategoryDrill: {
+      zoneKey: null,
+      circleKey: null,
+      divisionKey: null,
+      zoneLabel: null,
+      circleLabel: null,
+      divisionLabel: null,
+    },
     lastUpdateAt: Date.now(),
   };
 
@@ -256,6 +274,31 @@
             circleKey,
             divisionKey,
             label: division.label || divisionKey,
+          });
+        });
+      });
+    });
+    return out.sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  function listHierarchySubstations() {
+    const out = [];
+    Object.entries(FILTER_HIERARCHY).forEach(([zoneKey, zone]) => {
+      if (isOtherHierarchyLabel(zone?.label) || isOtherHierarchyLabel(zoneKey)) return;
+      Object.entries(zone.circles || {}).forEach(([circleKey, circle]) => {
+        if (isOtherHierarchyLabel(circle?.label) || isOtherHierarchyLabel(circleKey)) return;
+        Object.entries(circle.divisions || {}).forEach(([divisionKey, division]) => {
+          if (isOtherHierarchyLabel(division?.label) || isOtherHierarchyLabel(divisionKey)) return;
+          Object.entries(division.substations || {}).forEach(([substationKey, ss]) => {
+            const label = getSubstationLabel(ss) || substationKey;
+            if (!label || isOtherHierarchyLabel(label)) return;
+            out.push({
+              zoneKey,
+              circleKey,
+              divisionKey,
+              substationKey,
+              label,
+            });
           });
         });
       });
@@ -2018,13 +2061,13 @@
     'TS Hisar', 'MNP Dhulkot', 'Head Office', 'Other',
   ];
   const INVENTORY_MATERIAL_CATEGORIES = [
-    { key: 'equipments', label: 'Equipments', color: '#3B82F6' },
-    { key: 'dismantledHealthy', label: 'Dismantled Healthy Material', color: '#06B6D4' },
-    { key: 'packaging', label: 'Packaging', color: '#22C55E' },
-    { key: 'scrap', label: 'Scrap', color: '#F97316' },
-    { key: 'scrapDecommissioned', label: 'Scrap-Decommissioned', color: '#EAB308' },
-    { key: 'spares', label: 'Spares', color: '#86EFAC' },
-    { key: 'consumables', label: 'Consumables', color: '#A855F7' },
+    { key: 'equipments', label: 'Equipments', shortLabel: 'Equipments', pillClass: 'is-equipments', color: '#3B82F6' },
+    { key: 'dismantledHealthy', label: 'Dismantled Healthy Material', shortLabel: 'Dismantled Healthy', pillClass: 'is-dismantled', color: '#06B6D4' },
+    { key: 'packaging', label: 'Packaging', shortLabel: 'Packaging', pillClass: 'is-packaging', color: '#22C55E' },
+    { key: 'scrap', label: 'Scrap', shortLabel: 'Scrap', pillClass: 'is-scrap', color: '#F97316' },
+    { key: 'scrapDecommissioned', label: 'Scrap-Decommissioned', shortLabel: 'Scrap-Decom.', pillClass: 'is-scrap-decom', color: '#EAB308' },
+    { key: 'spares', label: 'Spares', shortLabel: 'Spares', pillClass: 'is-spares', color: '#4ADE80' },
+    { key: 'consumables', label: 'Consumables', shortLabel: 'Consumables', pillClass: 'is-consumables', color: '#A855F7' },
   ];
   const INVENTORY_AGE_BUCKETS = [
     { key: '<3m', label: '< Less Than 3 Months', color: '#3B82F6' },
@@ -2034,7 +2077,34 @@
     { key: '2-5y', label: '> 2 Year < 5 Years', color: '#EC4899' },
     { key: '>5y', label: '> Greater Than 5 Years', color: '#06B6D4' },
   ];
-  const INVENTORY_DD_CLASS_COLORS = ['#3B82F6', '#F97316', '#06B6D4', '#86EFAC', '#EAB308'];
+  const INVENTORY_DD_CLASS_COLORS = ['#3B82F6', '#F97316', '#06B6D4', '#22C55E', '#EAB308'];
+
+  function formatInvCr(value) {
+    return `₹${Number(value).toFixed(2)} Cr.`;
+  }
+
+  function renderInvDdClassLegend(classification) {
+    const legend = document.getElementById('inv-dd-class-legend');
+    if (!legend || !classification) return;
+    const { labels, percentages, values } = classification;
+    legend.innerHTML = labels.map((label, i) => {
+      const color = INVENTORY_DD_CLASS_COLORS[i % INVENTORY_DD_CLASS_COLORS.length];
+      const pct = Number(percentages[i]).toFixed(1);
+      const amount = formatInvCr(values[i]);
+      return `
+        <li class="donut-split-legend-item inv-dd-class-legend-item">
+          <span class="donut-split-legend-bar" style="background:${color}" aria-hidden="true"></span>
+          <div class="donut-split-legend-text inv-dd-class-legend-text">
+            <span class="inv-dd-class-legend-name">${label}</span>
+            <span class="inv-dd-class-legend-metrics">
+              <span class="inv-dd-class-legend-pct">${pct}%</span>
+              <span class="inv-dd-class-legend-sep" aria-hidden="true">·</span>
+              <span class="inv-dd-class-legend-amount">${amount}</span>
+            </span>
+          </div>
+        </li>`;
+    }).join('');
+  }
   const INV_STORE_HEALTHY_COLOR = '#3A7BD5';
   const INV_STORE_SCRAP_COLOR = '#FF6A00';
   const INV_STORE_LABEL_MIN_PX = 38;
@@ -2144,8 +2214,8 @@
       `Site Store,${s.siteStore.total},${s.siteStore.healthy},${s.siteStore.capital},${s.siteStore.om},${((s.siteStore.healthy / s.siteStore.total) * 100).toFixed(1)}`,
       `Total,${s.total.total},${s.total.healthy},${s.total.capital},${s.total.om},${((s.total.healthy / s.total.total) * 100).toFixed(1)}`,
       '',
-      'DD Store Classification,Percentage',
-      ...inv.ddClassification.labels.map((label, i) => `${label},${inv.ddClassification.values[i]}`),
+      'DD Store Classification,Percentage,Value (Cr.)',
+      ...inv.ddClassification.labels.map((label, i) => `${label},${inv.ddClassification.percentages[i]},${inv.ddClassification.values[i]}`),
       '',
       'Store,Healthy (Cr.),Scrap (Cr.)',
       ...inv.storeBreakdown.labels.map((label, i) => `${label},${inv.storeBreakdown.healthy[i]},${inv.storeBreakdown.scrap[i]}`),
@@ -2181,6 +2251,126 @@
     }));
   }
 
+  function buildInvCategoryLocationRow(seed, locIndex, extra = {}) {
+    const row = { ...extra };
+    INVENTORY_MATERIAL_CATEGORIES.forEach((cat, mi) => {
+      const base = [820, 180, 95, 240, 42, 120, 68][mi];
+      row[cat.key] = Number((base * (0.75 + seededUnit(seed, locIndex * 11 + mi) * 0.5)).toFixed(1));
+    });
+    return row;
+  }
+
+  function rowsToInvCategorySeries(level, labels, meta, rows, filter) {
+    const cats = filter || state.invCategoryFilter || {};
+    const data = { level, labels, meta };
+    INVENTORY_MATERIAL_CATEGORIES.forEach((cat) => {
+      data[cat.key] = rows.map((r) => (cats[cat.key] ? Number(r[cat.key]) || 0 : 0));
+    });
+    return data;
+  }
+
+  function getInvCategorySeries() {
+    const filter = state.invCategoryFilter || {};
+    const drill = state.invCategoryDrill || {};
+    const seed = hashFilterSeed();
+
+    if (drill.divisionKey) {
+      const substations = listHierarchySubstations().filter((ss) => {
+        if (ss.divisionKey !== drill.divisionKey) return false;
+        if (!isFilterAll(state.filters.zone) && ss.zoneKey !== state.filters.zone) return false;
+        if (!isFilterAll(state.filters.circle) && ss.circleKey !== state.filters.circle) return false;
+        if (!isFilterAll(state.filters.division) && ss.divisionKey !== state.filters.division) return false;
+        return true;
+      });
+      const rows = substations.map((ss, i) => buildInvCategoryLocationRow(seed, i + 140, ss));
+      return {
+        ...rowsToInvCategorySeries('Substation', substations.map((s) => s.label), substations, rows, filter),
+        drillLabel: drill.divisionLabel || drill.circleLabel || drill.zoneLabel,
+      };
+    }
+
+    if (drill.circleKey) {
+      const divisions = listHierarchyDivisions().filter((div) => {
+        if (div.circleKey !== drill.circleKey) return false;
+        if (!isFilterAll(state.filters.zone) && div.zoneKey !== state.filters.zone) return false;
+        if (!isFilterAll(state.filters.division) && div.divisionKey !== state.filters.division) return false;
+        return true;
+      });
+      const rows = divisions.map((div, i) => buildInvCategoryLocationRow(seed, i + 90, div));
+      return {
+        ...rowsToInvCategorySeries('Division', divisions.map((d) => d.label), divisions, rows, filter),
+        drillLabel: drill.circleLabel || drill.zoneLabel,
+      };
+    }
+
+    if (drill.zoneKey) {
+      const circles = listHierarchyCircles().filter((c) => {
+        if (c.zoneKey !== drill.zoneKey) return false;
+        if (!isFilterAll(state.filters.circle) && c.circleKey !== state.filters.circle) return false;
+        return true;
+      });
+      const rows = circles.map((c, i) => buildInvCategoryLocationRow(seed, i + 40, c));
+      return {
+        ...rowsToInvCategorySeries('Circle', circles.map((c) => c.label), circles, rows, filter),
+        drillLabel: drill.zoneLabel,
+      };
+    }
+
+    const level = state.invCategoryLevel || 'circle';
+    if (level === 'zone') {
+      const zones = listHierarchyZones().filter((z) =>
+        isFilterAll(state.filters.zone) || z.zoneKey === state.filters.zone
+      );
+      const rows = zones.map((zone, zi) => {
+        const row = buildInvCategoryLocationRow(seed, zi + 1, { zoneKey: zone.zoneKey });
+        INVENTORY_MATERIAL_CATEGORIES.forEach((cat) => {
+          let sum = 0;
+          listHierarchyCircles().forEach((c, ci) => {
+            if (c.zoneKey !== zone.zoneKey) return;
+            const child = buildInvCategoryLocationRow(seed, ci + 10, c);
+            sum += Number(child[cat.key]) || 0;
+          });
+          row[cat.key] = Number(sum.toFixed(1));
+        });
+        return row;
+      });
+      return rowsToInvCategorySeries('Zone', zones.map((z) => z.label), zones.map((z) => ({ zoneKey: z.zoneKey })), rows, filter);
+    }
+
+    if (level === 'division') {
+      const divisions = listHierarchyDivisions().filter((div) => {
+        if (!isFilterAll(state.filters.zone) && div.zoneKey !== state.filters.zone) return false;
+        if (!isFilterAll(state.filters.circle) && div.circleKey !== state.filters.circle) return false;
+        if (!isFilterAll(state.filters.division) && div.divisionKey !== state.filters.division) return false;
+        return true;
+      });
+      const rows = divisions.map((div, i) => buildInvCategoryLocationRow(seed, i + 60, div));
+      return rowsToInvCategorySeries('Division', divisions.map((d) => d.label), divisions, rows, filter);
+    }
+
+    if (level === 'substation') {
+      const substations = listHierarchySubstations().filter((ss) => {
+        if (!isFilterAll(state.filters.zone) && ss.zoneKey !== state.filters.zone) return false;
+        if (!isFilterAll(state.filters.circle) && ss.circleKey !== state.filters.circle) return false;
+        if (!isFilterAll(state.filters.division) && ss.divisionKey !== state.filters.division) return false;
+        return true;
+      });
+      const rows = substations.map((ss, i) => buildInvCategoryLocationRow(seed, i + 120, ss));
+      return rowsToInvCategorySeries('Substation', substations.map((s) => s.label), substations, rows, filter);
+    }
+
+    const circles = listHierarchyCircles().filter((c) => {
+      if (!isFilterAll(state.filters.zone) && c.zoneKey !== state.filters.zone) return false;
+      if (!isFilterAll(state.filters.circle) && c.circleKey !== state.filters.circle) return false;
+      return true;
+    });
+    const useCircles = circles.length
+      ? circles
+      : INVENTORY_CATEGORY_CIRCLES.map((label, ci) => ({ label, circleKey: `inv-circle-${ci}`, zoneKey: null }));
+    const rows = useCircles.map((c, i) => buildInvCategoryLocationRow(seed, i + 5, c));
+    return rowsToInvCategorySeries('Circle', useCircles.map((c) => c.label), useCircles, rows, filter);
+  }
+
   function buildInventoryCategorySeries() {
     const seed = hashFilterSeed();
     return INVENTORY_CATEGORY_CIRCLES.map((circle, ci) => {
@@ -2201,8 +2391,10 @@
         total: { total: 203.62, healthy: 176.28, capital: 113.07, om: 63.22 },
       },
       ddClassification: {
+        baseline: 71.77,
         labels: ['Equipments', 'Scrap', 'Dismantled Healthy Material', 'Spares', 'Scrap-Decommissioned'],
-        values: [67.6, 26.9, 3.7, 1.7, 0.1],
+        percentages: [67.6, 26.9, 3.7, 1.7, 0.1],
+        values: [48.52, 19.31, 2.65, 1.22, 0.07],
       },
       storeBreakdown: {
         labels: [
@@ -3450,6 +3642,36 @@
     URL.revokeObjectURL(url);
   }
 
+  const STACKED_PREMIUM_CHARTS = {
+    'tsa-outage-circle-chart': {
+      valueSuffix: 'h',
+      highestBg: 'rgba(81, 65, 195, 0.95)',
+      highestGlow: 'rgba(81, 65, 195, 0.35)',
+      highestBorder: 'rgba(118, 226, 225, 0.82)',
+    },
+    'tsa-exec-tripping-chart': {
+      valueSuffix: 'h',
+      highestBg: 'rgba(81, 65, 195, 0.95)',
+      highestGlow: 'rgba(81, 65, 195, 0.35)',
+      highestBorder: 'rgba(118, 226, 225, 0.82)',
+    },
+    'inv-category-chart': {
+      valueSuffix: ' L',
+      highestBg: 'rgba(94, 53, 177, 0.95)',
+      highestGlow: 'rgba(94, 53, 177, 0.38)',
+      highestBorder: 'rgba(94, 53, 177, 0.82)',
+      roundTotal: true,
+    },
+  };
+
+  function getStackedPremiumConfig(chart) {
+    return STACKED_PREMIUM_CHARTS[chart?.canvas?.id] || null;
+  }
+
+  function isStackedPremiumChart(chart) {
+    return !!getStackedPremiumConfig(chart);
+  }
+
   const OA_PREMIUM_CHART_IDS = new Set(['tsa-outage-circle-chart', 'tsa-exec-tripping-chart']);
 
   function isOaPremiumChart(chart) {
@@ -3618,7 +3840,7 @@
   const oaCirclePremiumPlugin = {
     id: 'oaCirclePremium',
     beforeDatasetsDraw(chart) {
-      if (!isOaPremiumChart(chart)) return;
+      if (!isStackedPremiumChart(chart)) return;
       chart.$oaElevated = [];
       const hover = chart.getActiveElements()[0]?.index;
       if (hover == null || hover < 0) return;
@@ -3632,7 +3854,9 @@
       });
     },
     afterDatasetsDraw(chart) {
-      if (!isOaPremiumChart(chart)) return;
+      if (!isStackedPremiumChart(chart)) return;
+      const premium = getStackedPremiumConfig(chart);
+      if (!premium) return;
       const { ctx, chartArea } = chart;
       if (!chartArea) return;
 
@@ -3661,6 +3885,9 @@
       if (!meta0?.data?.length || !metaTop?.data?.length) return;
 
       const pulse = (Math.sin(Date.now() / 500) + 1) / 2;
+      const formatTotal = (total) => (
+        premium.roundTotal ? `${Math.round(total)}${premium.valueSuffix}` : `${total.toFixed(1)}${premium.valueSuffix}`
+      );
 
       totals.forEach((total, i) => {
         const topBar = metaTop.data[i];
@@ -3681,10 +3908,10 @@
 
         if (isHighest) {
           ctx.save();
-          ctx.shadowColor = `rgba(81, 65, 195, ${0.38 + pulse * 0.22})`;
+          ctx.shadowColor = premium.highestGlow;
           ctx.shadowBlur = 18 + pulse * 8;
           ctx.shadowOffsetY = 4;
-          ctx.strokeStyle = `rgba(118, 226, 225, ${0.82 + pulse * 0.12})`;
+          ctx.strokeStyle = premium.highestBorder;
           ctx.lineWidth = 2.5;
           roundRectPath(x - width / 2 - 4, topY - 4, width + 8, Math.max(baseY - topY, 1) + 8, 10);
           ctx.stroke();
@@ -3699,8 +3926,8 @@
           let by = topY - 38;
           bx = Math.max(chartArea.left + 2, Math.min(bx, chartArea.right - bw - 2));
           by = Math.max(chartArea.top + 2, by);
-          ctx.fillStyle = 'rgba(81, 65, 195, 0.95)';
-          ctx.shadowColor = 'rgba(81, 65, 195, 0.35)';
+          ctx.fillStyle = premium.highestBg;
+          ctx.shadowColor = premium.highestGlow;
           ctx.shadowBlur = 10;
           roundRectPath(bx, by, bw, bh, 9);
           ctx.fill();
@@ -3712,7 +3939,7 @@
           ctx.restore();
         }
 
-        const label = `${total.toFixed(1)}h`;
+        const label = formatTotal(total);
         ctx.save();
         ctx.font = `600 11px 'Inter', sans-serif`;
         const tw = ctx.measureText(label).width + 12;
@@ -3758,9 +3985,11 @@
     const tick = () => {
       const oaView = state.currentView === 'tsa-outage-analytics' && state.charts.tsaOutageCircle;
       const execView = state.currentView === 'tsa-executive-summary' && state.charts.tsaExecTripping;
+      const invView = state.currentView === 'inventory-category-distribution' && state.charts.invCategory;
       if (oaView) state.charts.tsaOutageCircle.draw();
       if (execView) state.charts.tsaExecTripping.draw();
-      if (oaView || execView) {
+      if (invView) state.charts.invCategory.draw();
+      if (oaView || execView || invView) {
         oaCirclePulseRaf = requestAnimationFrame(tick);
       } else {
         oaCirclePulseRaf = null;
@@ -3860,6 +4089,253 @@
       input.checked = true;
     });
     renderTsaExecutiveSummary();
+  }
+
+  function makeInvCategoryStackedDatasets(series) {
+    return INVENTORY_MATERIAL_CATEGORIES.map((cat) => ({
+      label: cat.label,
+      data: (series[cat.key] || []).slice(),
+      backgroundColor: cat.color,
+      hoverBackgroundColor: cat.color,
+      borderColor: 'transparent',
+      borderWidth: 0,
+      borderSkipped: false,
+      borderRadius: 6,
+      stack: 'inventory',
+      maxBarThickness: 42,
+    }));
+  }
+
+  function getInvCategoryStackedBarChartOptions(d, softGrid, { onClick } = {}) {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: {
+        duration: 900,
+        easing: 'easeOutQuart',
+        delay: (ctx) => (ctx.type === 'data' ? ctx.dataIndex * 70 + ctx.datasetIndex * 45 : 0),
+      },
+      interaction: { mode: 'index', intersect: false },
+      onHover(evt, elements) {
+        const target = evt.native?.target || evt.chart?.canvas;
+        if (target) target.style.cursor = elements.length ? 'pointer' : 'default';
+      },
+      onClick,
+      layout: { padding: { top: 52, right: 8, bottom: 4, left: 4 } },
+      datasets: {
+        bar: {
+          categoryPercentage: 0.62,
+          barPercentage: 0.78,
+        },
+      },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: d.color,
+            font: { size: 11, weight: '500', family: "'Inter', sans-serif" },
+            usePointStyle: true,
+            pointStyle: 'rectRounded',
+            padding: 16,
+            boxWidth: 10,
+            boxHeight: 10,
+            generateLabels(chart) {
+              const defaults = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+              return defaults.map((item, i) => ({
+                ...item,
+                fillStyle: INVENTORY_MATERIAL_CATEGORIES[i]?.color || item.fillStyle,
+                strokeStyle: INVENTORY_MATERIAL_CATEGORIES[i]?.color || item.strokeStyle,
+              }));
+            },
+          },
+        },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.94)',
+          titleColor: '#F8FAFC',
+          bodyColor: '#CBD5E1',
+          footerColor: '#F8FAFC',
+          borderColor: 'rgba(148, 163, 184, 0.25)',
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 10,
+          displayColors: true,
+          boxPadding: 6,
+          titleFont: { size: 12, weight: '600' },
+          bodyFont: { size: 11 },
+          footerFont: { size: 11, weight: '600' },
+          filter: (item) => Number(item.parsed.y) > 0,
+          callbacks: {
+            title(items) {
+              return items[0]?.label || '';
+            },
+            label(ctx) {
+              const v = Number(ctx.parsed.y) || 0;
+              return ` ${ctx.dataset.label}: ${v.toFixed(1)} L`;
+            },
+            footer(items) {
+              const total = items.reduce((s, it) => s + (Number(it.parsed.y) || 0), 0);
+              return `Total: ${Math.round(total)} L`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          ticks: {
+            ...d.ticks,
+            font: { size: 10, weight: '600', family: "'Inter', sans-serif" },
+            color: d.color,
+            maxRotation: 45,
+            minRotation: 45,
+            autoSkip: false,
+          },
+          grid: { display: false },
+          border: { display: false },
+        },
+        y: {
+          stacked: true,
+          min: 0,
+          grace: '8%',
+          ticks: {
+            ...d.ticks,
+            font: { size: 10, family: "'Inter', sans-serif" },
+            stepSize: 500,
+            callback(v) { return `${v} L`; },
+          },
+          grid: {
+            color: softGrid,
+            drawTicks: false,
+            lineWidth: 1,
+          },
+          border: { display: false },
+          title: {
+            display: true,
+            text: 'Lakhs',
+            color: d.color,
+            font: { size: 11, weight: '500', family: "'Inter', sans-serif" },
+            padding: { bottom: 4 },
+          },
+        },
+      },
+    };
+  }
+
+  function handleInvCategoryChartClick(_evt, elements) {
+    if (!elements?.length) return;
+    const series = state._lastInvCategorySeries;
+    if (!series?.meta) return;
+    const idx = elements[0].index;
+    const item = series.meta[idx];
+    if (!item) return;
+    const drill = state.invCategoryDrill || {};
+
+    if (series.level === 'Zone' && item.zoneKey && !drill.zoneKey) {
+      state.invCategoryDrill = {
+        zoneKey: item.zoneKey,
+        zoneLabel: series.labels[idx],
+        circleKey: null,
+        circleLabel: null,
+        divisionKey: null,
+        divisionLabel: null,
+      };
+      renderInventoryCategoryDistribution();
+      return;
+    }
+    if (series.level === 'Circle' && item.circleKey && !drill.circleKey) {
+      state.invCategoryDrill = {
+        zoneKey: drill.zoneKey || item.zoneKey,
+        zoneLabel: drill.zoneLabel,
+        circleKey: item.circleKey,
+        circleLabel: series.labels[idx],
+        divisionKey: null,
+        divisionLabel: null,
+      };
+      renderInventoryCategoryDistribution();
+      return;
+    }
+    if (series.level === 'Division' && item.divisionKey && !drill.divisionKey) {
+      state.invCategoryDrill = {
+        zoneKey: drill.zoneKey || item.zoneKey,
+        zoneLabel: drill.zoneLabel,
+        circleKey: drill.circleKey || item.circleKey,
+        circleLabel: drill.circleLabel,
+        divisionKey: item.divisionKey,
+        divisionLabel: series.labels[idx],
+      };
+      renderInventoryCategoryDistribution();
+    }
+  }
+
+  function buildInvCategoryChart() {
+    const d = chartDefaults();
+    const softGrid = isDark() ? 'rgba(148, 163, 184, 0.10)' : 'rgba(148, 163, 184, 0.16)';
+    const series = getInvCategorySeries();
+    state._lastInvCategorySeries = series;
+
+    return new Chart(document.getElementById('inv-category-chart'), {
+      type: 'bar',
+      plugins: [oaCirclePremiumPlugin],
+      data: {
+        labels: series.labels,
+        datasets: makeInvCategoryStackedDatasets(series),
+      },
+      options: getInvCategoryStackedBarChartOptions(d, softGrid, {
+        onClick: handleInvCategoryChartClick,
+      }),
+    });
+  }
+
+  function exportInvCategoryCsv() {
+    const series = getInvCategorySeries();
+    const header = ['Location', ...INVENTORY_MATERIAL_CATEGORIES.map((c) => c.label), 'Total (L)'];
+    const lines = [header.join(',')];
+    (series.labels || []).forEach((label, i) => {
+      const parts = [label];
+      let total = 0;
+      INVENTORY_MATERIAL_CATEGORIES.forEach((cat) => {
+        const v = Number(series[cat.key]?.[i]) || 0;
+        parts.push(v.toFixed(1));
+        total += v;
+      });
+      parts.push(total.toFixed(1));
+      lines.push(parts.join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'inventory-category-distribution.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function resetInvCategoryWidget() {
+    state.invCategoryDrill = {
+      zoneKey: null,
+      circleKey: null,
+      divisionKey: null,
+      zoneLabel: null,
+      circleLabel: null,
+      divisionLabel: null,
+    };
+    state.invCategoryLevel = 'circle';
+    state.invCategoryFilter = {
+      equipments: true,
+      dismantledHealthy: true,
+      packaging: true,
+      scrap: true,
+      scrapDecommissioned: true,
+      spares: true,
+      consumables: true,
+    };
+    document.querySelectorAll('[data-inv-cat-level]').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.invCatLevel === 'circle');
+    });
+    document.querySelectorAll('[data-inv-cat]').forEach((input) => {
+      input.checked = true;
+    });
+    renderInventoryCategoryDistribution();
   }
 
   function buildTsaOutageTafmChart() {
@@ -5489,7 +5965,19 @@
           responsive: true,
           maintainAspectRatio: false,
           cutout: '78%',
-          plugins: { legend: { display: false }, tooltip: d.tooltip },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...d.tooltip,
+              callbacks: {
+                label(ctx) {
+                  const pct = inv.ddClassification.percentages[ctx.dataIndex];
+                  const val = Number(ctx.parsed).toFixed(2);
+                  return ` ${ctx.label}: ${pct}% · ₹${val} Cr.`;
+                },
+              },
+            },
+          },
         },
       });
     }
@@ -5675,57 +6163,7 @@
 
     const categoryEl = document.getElementById('inv-category-chart');
     if (categoryEl) {
-      const rows = inv.category || buildInventoryCategorySeries();
-      state.charts.invCategory = new Chart(categoryEl, {
-        type: 'bar',
-        data: {
-          labels: rows.map((r) => r.circle),
-          datasets: INVENTORY_MATERIAL_CATEGORIES.map((cat) => ({
-            label: cat.label,
-            data: rows.map((r) => r[cat.key]),
-            backgroundColor: cat.color,
-            stack: 'category',
-            borderRadius: 3,
-            maxBarThickness: 42,
-          })),
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: { color: d.color, font: { size: 10 }, usePointStyle: true, boxWidth: 10 },
-            },
-            tooltip: {
-              ...d.tooltip,
-              callbacks: {
-                footer(items) {
-                  const total = items.reduce((sum, item) => sum + Number(item.parsed.y || 0), 0);
-                  return `Total: ${total.toFixed(1)} Lakhs`;
-                },
-                label(ctx) {
-                  return ` ${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(1)} Lakhs`;
-                },
-              },
-            },
-          },
-          scales: {
-            x: {
-              stacked: true,
-              ticks: { ...d.ticks, maxRotation: 35, minRotation: 35, font: { size: 10 } },
-              grid: { display: false },
-            },
-            y: {
-              stacked: true,
-              ticks: { ...d.ticks, callback(v) { return `${v} L`; } },
-              grid: d.grid,
-              title: { display: true, text: 'Lakhs', color: d.color, font: { size: 11 } },
-            },
-          },
-        },
-      });
+      state.charts.invCategory = buildInvCategoryChart();
     }
 
     renderInventoryOverview();
@@ -5741,16 +6179,18 @@
     updateInventoryKpiCard('site', s.siteStore);
     updateInventoryKpiCard('total', s.total);
 
-    renderDonutSplitLegend(
-      'inv-dd-class-legend',
-      inv.ddClassification.labels,
-      inv.ddClassification.values,
-      INVENTORY_DD_CLASS_COLORS,
-      { decimals: 1 }
-    );
+    renderInvDdClassLegend(inv.ddClassification);
+    const centerLabel = document.querySelector('.inv-dd-class-center-label');
+    const centerValue = document.querySelector('.inv-dd-class-center-value');
+    const centerShare = document.querySelector('.inv-dd-class-center-share');
+    const baseline = inv.ddClassification.baseline ?? s.ddStore.total;
+    if (centerLabel) centerLabel.textContent = 'DD Store Total';
+    if (centerValue) centerValue.textContent = formatInvCr(baseline);
+    if (centerShare) centerShare.textContent = '100% Share';
     if (state.charts.invDdClass) {
       state.charts.invDdClass.data.labels = inv.ddClassification.labels;
       state.charts.invDdClass.data.datasets[0].data = inv.ddClassification.values.slice();
+      state.charts.invDdClass.data.datasets[0].backgroundColor = INVENTORY_DD_CLASS_COLORS;
       state.charts.invDdClass.update('none');
     }
     if (state.charts.invStoreBreakdown) {
@@ -5782,15 +6222,34 @@
   }
 
   function renderInventoryCategoryDistribution() {
-    const inv = state.data?.inventory;
-    if (!inv) return;
+    const series = getInvCategorySeries();
+    state._lastInvCategorySeries = series;
+
+    const scopeEl = document.getElementById('inv-category-scope');
+    if (scopeEl) {
+      let scope = `Grouped by ${series.level} · total inventory valuation (Lakhs)`;
+      if (series.drillLabel) scope += ` · ${series.drillLabel}`;
+      scopeEl.textContent = scope;
+    }
+
+    document.querySelectorAll('[data-inv-cat-level]').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.invCatLevel === state.invCategoryLevel);
+    });
+    document.querySelectorAll('[data-inv-cat]').forEach((input) => {
+      const key = input.dataset.invCat;
+      input.checked = !!state.invCategoryFilter[key];
+    });
+
     if (!state.charts.invCategory) return;
-    const rows = inv.category || buildInventoryCategorySeries();
-    state.charts.invCategory.data.labels = rows.map((r) => r.circle);
+    state.charts.invCategory.data.labels = series.labels;
     INVENTORY_MATERIAL_CATEGORIES.forEach((cat, i) => {
-      state.charts.invCategory.data.datasets[i].data = rows.map((r) => r[cat.key]);
+      state.charts.invCategory.data.datasets[i].data = (series[cat.key] || []).slice();
     });
     state.charts.invCategory.update('none');
+
+    if (state.currentView === 'inventory-category-distribution') {
+      startOaCirclePulse();
+    }
   }
 
   function applyInventoryFyFilter() {
@@ -8723,6 +9182,11 @@
       filterToolbar.hidden = viewId === 'settings' || String(viewId).startsWith('inventory-');
     }
 
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) {
+      mainContent.classList.toggle('main-content--inventory-fit', viewId === 'inventory-overview');
+    }
+
     const invExportBtn = document.getElementById('inv-export-report');
     if (invExportBtn) invExportBtn.hidden = viewId !== 'inventory-overview';
 
@@ -8731,6 +9195,10 @@
       startOaCirclePulse();
     } else if (viewId === 'tsa-executive-summary') {
       stopTafmPulse();
+      startOaCirclePulse();
+    } else if (viewId === 'inventory-category-distribution') {
+      stopTafmPulse();
+      renderInventoryCategoryDistribution();
       startOaCirclePulse();
     } else {
       stopTafmPulse();
@@ -8906,6 +9374,38 @@
 
     document.getElementById('exec-tripping-export')?.addEventListener('click', () => {
       exportExecTrippingCsv();
+    });
+
+    document.querySelectorAll('[data-inv-cat-level]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.invCategoryLevel = btn.dataset.invCatLevel;
+        state.invCategoryDrill = {
+          zoneKey: null,
+          circleKey: null,
+          divisionKey: null,
+          zoneLabel: null,
+          circleLabel: null,
+          divisionLabel: null,
+        };
+        renderInventoryCategoryDistribution();
+      });
+    });
+
+    document.querySelectorAll('[data-inv-cat]').forEach((input) => {
+      input.addEventListener('change', () => {
+        const key = input.dataset.invCat;
+        if (!key) return;
+        state.invCategoryFilter[key] = input.checked;
+        renderInventoryCategoryDistribution();
+      });
+    });
+
+    document.getElementById('inv-category-refresh')?.addEventListener('click', () => {
+      resetInvCategoryWidget();
+    });
+
+    document.getElementById('inv-category-export')?.addEventListener('click', () => {
+      exportInvCategoryCsv();
     });
 
     document.querySelectorAll('[data-so-avail-gran]').forEach((btn) => {

@@ -1892,8 +1892,8 @@
 
         <!-- INVENTORY MODULE -->
         <section id="view-inventory-overview" class="view inv-overview-view">
-          <div class="inv-overview-layout">
-            <div class="inv-kpi-band">
+          <div class="inv-overview-layout inventory-overview-container">
+            <div class="inv-kpi-band kpi-cards-row">
               <article class="inv-kpi-card inv-kpi-card--dd">
                 <div class="inv-kpi-card-top">
                   <div class="inv-kpi-card-head">
@@ -1982,22 +1982,23 @@
               </article>
             </div>
 
-            <div class="inv-overview-charts">
+            <div class="inv-overview-charts charts-grid-row">
               <div class="panel inv-overview-panel">
                 <div class="panel-header">
                   <div>
                     <h3>DD Store Inventory Classification</h3>
-                    <p class="card__meta">Material category split across DD stores</p>
+                    <p class="card__meta">Material category split across DD stores (Valuation &amp; % Share)</p>
                   </div>
                 </div>
                 <div class="panel-body donut-split-body inv-overview-chart-body">
                   <div class="donut-split-layout inv-donut-layout">
-                    <ul class="donut-split-legend" id="inv-dd-class-legend"></ul>
+                    <ul class="donut-split-legend inv-dd-class-legend" id="inv-dd-class-legend" aria-label="DD store inventory classification legend"></ul>
                     <div class="donut-split-chart-wrap">
                       <canvas id="inv-dd-class-chart" aria-label="DD store inventory classification donut chart"></canvas>
-                      <div class="donut-split-center">
-                        <span class="donut-split-center-label">DD Store</span>
-                        <span class="donut-split-center-value">Classification</span>
+                      <div class="donut-split-center inv-dd-class-center">
+                        <span class="inv-dd-class-center-label">DD Store Total</span>
+                        <span class="inv-dd-class-center-value">₹71.77 Cr.</span>
+                        <span class="inv-dd-class-center-share">100% Share</span>
                       </div>
                     </div>
                   </div>
