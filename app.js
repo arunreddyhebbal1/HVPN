@@ -42,6 +42,9 @@
     soAvailGranularity: 'hourly',
     soAvailMetric: 'availability',
     soAvailSelectedIndex: null,
+    inventoryFy: 'all',
+    inventoryStoreType: 'all',
+    inventoryRequestType: 'all',
     lastUpdateAt: Date.now(),
   };
 
@@ -624,7 +627,31 @@
     'tsa-outage-analytics': 'Outage Analytics',
     'tsa-deemed-exempt': 'Deemed/Exempt Register',
     'tsa-tripping-register': 'Tripping Register',
+    'inventory-overview': 'Inventory — Overview & Store Summary',
+    'inventory-consumption-and-age': 'Inventory — Consumption & Age Analytics',
+    'inventory-category-distribution': 'Inventory — Circle & Category Distribution',
   };
+
+  const VIEW_ROUTES = {
+    'inventory/overview': 'inventory-overview',
+    'inventory/consumption-and-age': 'inventory-consumption-and-age',
+    'inventory/category-distribution': 'inventory-category-distribution',
+  };
+  const ROUTE_BY_VIEW = Object.fromEntries(
+    Object.entries(VIEW_ROUTES).map(([route, viewId]) => [viewId, route])
+  );
+
+  function viewIdFromHash() {
+    const path = (location.hash || '').replace(/^#\/?/, '').trim();
+    return VIEW_ROUTES[path] || null;
+  }
+
+  function syncHashFromView(viewId) {
+    const route = ROUTE_BY_VIEW[viewId];
+    if (!route) return;
+    const next = `#/${route}`;
+    if (location.hash !== next) location.hash = next;
+  }
 
   // ─── Utilities ───────────────────────────────────────────────────────
   const rand = (min, max) => Math.random() * (max - min) + min;
@@ -1982,6 +2009,215 @@
   }
 
   // ─── Mock Data Engine ──────────────────────────────────────────────────
+  const INVENTORY_CONSUMPTION_CIRCLES = [
+    'TS Panchkula', 'TS Karnal', 'TS Rohtak', 'TS Gurugram', 'TS Faridabad',
+    'TS Hisar', 'MNP Dhulkot', 'MNP Delhi', 'Head Office', 'Other',
+  ];
+  const INVENTORY_CATEGORY_CIRCLES = [
+    'TS Panchkula', 'TS Karnal', 'TS Rohtak', 'TS Gurugram', 'TS Faridabad',
+    'TS Hisar', 'MNP Dhulkot', 'Head Office', 'Other',
+  ];
+  const INVENTORY_MATERIAL_CATEGORIES = [
+    { key: 'equipments', label: 'Equipments', color: '#3B82F6' },
+    { key: 'dismantledHealthy', label: 'Dismantled Healthy Material', color: '#06B6D4' },
+    { key: 'packaging', label: 'Packaging', color: '#22C55E' },
+    { key: 'scrap', label: 'Scrap', color: '#F97316' },
+    { key: 'scrapDecommissioned', label: 'Scrap-Decommissioned', color: '#EAB308' },
+    { key: 'spares', label: 'Spares', color: '#86EFAC' },
+    { key: 'consumables', label: 'Consumables', color: '#A855F7' },
+  ];
+  const INVENTORY_AGE_BUCKETS = [
+    { key: '<3m', label: '< Less Than 3 Months', color: '#3B82F6' },
+    { key: '3-6m', label: '> 3 Months < 6 Months', color: '#EAB308' },
+    { key: '6-12m', label: '> 6 Months < 1 Year', color: '#22C55E' },
+    { key: '1-2y', label: '> 1 Year < 2 Years', color: '#A855F7' },
+    { key: '2-5y', label: '> 2 Year < 5 Years', color: '#EC4899' },
+    { key: '>5y', label: '> Greater Than 5 Years', color: '#06B6D4' },
+  ];
+  const INVENTORY_DD_CLASS_COLORS = ['#3B82F6', '#F97316', '#06B6D4', '#86EFAC', '#EAB308'];
+  const INV_STORE_HEALTHY_COLOR = '#3A7BD5';
+  const INV_STORE_SCRAP_COLOR = '#FF6A00';
+  const INV_STORE_LABEL_MIN_PX = 38;
+
+  const invStoreBreakdownPlugin = {
+    id: 'invStoreBreakdownLabels',
+    beforeDatasetsDraw(chart) {
+      if (chart.canvas?.id !== 'inv-store-breakdown-chart') return;
+      const { ctx, chartArea, scales } = chart;
+      const yScale = scales.y;
+      if (!yScale || !chartArea) return;
+      const labels = chart.data.labels || [];
+      labels.forEach((_, i) => {
+        const center = yScale.getPixelForValue(i);
+        const prev = i > 0 ? yScale.getPixelForValue(i - 1) : null;
+        const next = i < labels.length - 1 ? yScale.getPixelForValue(i + 1) : null;
+        const top = prev == null ? chartArea.top : (center + prev) / 2;
+        const bottom = next == null ? chartArea.bottom : (center + next) / 2;
+        if (i % 2 !== 0) return;
+        ctx.save();
+        ctx.fillStyle = isDark() ? 'rgba(148, 163, 184, 0.06)' : 'rgba(148, 163, 184, 0.08)';
+        ctx.fillRect(chartArea.left, top, chartArea.right - chartArea.left, bottom - top);
+        ctx.restore();
+      });
+    },
+    afterDatasetsDraw(chart) {
+      if (chart.canvas?.id !== 'inv-store-breakdown-chart') return;
+      const { ctx, chartArea } = chart;
+      const healthyMeta = chart.getDatasetMeta(0);
+      const scrapMeta = chart.getDatasetMeta(1);
+      const healthy = chart.data.datasets[0]?.data || [];
+      const scrap = chart.data.datasets[1]?.data || [];
+      const totalColor = isDark() ? '#CBD5E1' : '#334155';
+
+      const drawSegmentLabel = (bar, value) => {
+        const width = Math.abs(bar.x - bar.base);
+        if (width < INV_STORE_LABEL_MIN_PX || !Number.isFinite(Number(value))) return;
+        const cx = (bar.x + bar.base) / 2;
+        ctx.save();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = "600 11px 'Inter', system-ui, sans-serif";
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(Number(value).toFixed(1), cx, bar.y);
+        ctx.restore();
+      };
+
+      healthyMeta.data.forEach((bar, i) => {
+        if (bar) drawSegmentLabel(bar, healthy[i]);
+      });
+      scrapMeta.data.forEach((bar, i) => {
+        if (bar) drawSegmentLabel(bar, scrap[i]);
+      });
+
+      healthyMeta.data.forEach((healthyBar, i) => {
+        const scrapBar = scrapMeta.data[i];
+        if (!healthyBar || !scrapBar) return;
+        const total = Number(healthy[i] || 0) + Number(scrap[i] || 0);
+        const endX = Math.max(healthyBar.x, scrapBar.x);
+        ctx.save();
+        ctx.fillStyle = totalColor;
+        ctx.font = "700 12px 'Inter', system-ui, sans-serif";
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`Total: ${total.toFixed(1)} Cr.`, Math.min(endX + 10, chartArea.right - 6), healthyBar.y);
+        ctx.restore();
+      });
+    },
+  };
+
+  function formatInventoryCr(value) {
+    return `₹${Number(value).toFixed(2)} Cr.`;
+  }
+
+  function formatInventoryCrShort(value) {
+    return `${Number(value).toFixed(2)} Cr.`;
+  }
+
+  function updateInventoryKpiCard(prefix, store) {
+    const total = Number(store.total) || 0;
+    const healthy = Number(store.healthy) || 0;
+    const pct = total > 0 ? (healthy / total) * 100 : 0;
+    const setText = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+    setText(`inv-${prefix}-total`, formatInventoryCr(total));
+    setText(`inv-${prefix}-healthy`, formatInventoryCrShort(healthy));
+    setText(`inv-${prefix}-healthy-pct`, `(${pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(1)}%)`);
+    setText(`inv-${prefix}-capital`, formatInventoryCr(store.capital));
+    setText(`inv-${prefix}-om`, formatInventoryCr(store.om));
+    const progress = document.getElementById(`inv-${prefix}-progress`);
+    const progressWrap = document.getElementById(`inv-${prefix}-progress-wrap`);
+    if (progress) progress.style.width = `${pct}%`;
+    if (progressWrap) progressWrap.setAttribute('aria-valuenow', String(Math.round(pct)));
+  }
+
+  function exportInventoryOverviewReport() {
+    const inv = state.data?.inventory;
+    if (!inv) return;
+    const s = inv.summary;
+    const lines = [
+      'Inventory Overview & Store Summary',
+      '',
+      'Store,Total (Cr.),Healthy (Cr.),Capital (Cr.),O&M (Cr.),Healthy %',
+      `DD Store,${s.ddStore.total},${s.ddStore.healthy},${s.ddStore.capital},${s.ddStore.om},${((s.ddStore.healthy / s.ddStore.total) * 100).toFixed(1)}`,
+      `Site Store,${s.siteStore.total},${s.siteStore.healthy},${s.siteStore.capital},${s.siteStore.om},${((s.siteStore.healthy / s.siteStore.total) * 100).toFixed(1)}`,
+      `Total,${s.total.total},${s.total.healthy},${s.total.capital},${s.total.om},${((s.total.healthy / s.total.total) * 100).toFixed(1)}`,
+      '',
+      'DD Store Classification,Percentage',
+      ...inv.ddClassification.labels.map((label, i) => `${label},${inv.ddClassification.values[i]}`),
+      '',
+      'Store,Healthy (Cr.),Scrap (Cr.)',
+      ...inv.storeBreakdown.labels.map((label, i) => `${label},${inv.storeBreakdown.healthy[i]},${inv.storeBreakdown.scrap[i]}`),
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'inventory-overview-report.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function buildInventoryConsumptionSeries(fyKey = 'all') {
+    const baseCwip = [420, 385, 360, 510, 445, 390, 280, 240, 180, 95];
+    const baseOm = [310, 295, 270, 380, 335, 300, 210, 185, 140, 72];
+    const fyScale = fyKey === '2025-26' ? 0.92 : fyKey === '2026-27' ? 1.08 : 1;
+    return {
+      labels: INVENTORY_CONSUMPTION_CIRCLES.slice(),
+      cwip: baseCwip.map((v) => Number((v * fyScale * (0.96 + seededUnit(hashFilterSeed(), v) * 0.08)).toFixed(1))),
+      om: baseOm.map((v) => Number((v * fyScale * (0.94 + seededUnit(hashFilterSeed(), v + 17) * 0.1)).toFixed(1))),
+    };
+  }
+
+  function buildInventoryAgeSeries(storeType = 'all', requestType = 'all') {
+    const seed = hashFilterSeed();
+    const storeScale = storeType === 'dd' ? 0.42 : storeType === 'site' ? 0.78 : storeType === 'workshop' ? 0.28 : 1;
+    const requestScale = requestType === 'scrap' ? 0.55 : requestType === 'healthy' ? 0.82 : 1;
+    const base = [1280, 980, 760, 620, 480, 340];
+    return INVENTORY_AGE_BUCKETS.map((bucket, i) => ({
+      ...bucket,
+      value: Number((base[i] * storeScale * requestScale * (0.9 + seededUnit(seed, i + 41) * 0.2)).toFixed(1)),
+    }));
+  }
+
+  function buildInventoryCategorySeries() {
+    const seed = hashFilterSeed();
+    return INVENTORY_CATEGORY_CIRCLES.map((circle, ci) => {
+      const row = { circle };
+      INVENTORY_MATERIAL_CATEGORIES.forEach((cat, mi) => {
+        const base = [820, 180, 95, 240, 42, 120, 68][mi];
+        row[cat.key] = Number((base * (0.75 + seededUnit(seed, ci * 11 + mi) * 0.5)).toFixed(1));
+      });
+      return row;
+    });
+  }
+
+  function buildInventoryMockData() {
+    return {
+      summary: {
+        ddStore: { total: 71.77, healthy: 52.41, capital: 26.59, om: 25.83 },
+        siteStore: { total: 131.85, healthy: 123.87, capital: 86.48, om: 37.39 },
+        total: { total: 203.62, healthy: 176.28, capital: 113.07, om: 63.22 },
+      },
+      ddClassification: {
+        labels: ['Equipments', 'Scrap', 'Dismantled Healthy Material', 'Spares', 'Scrap-Decommissioned'],
+        values: [67.6, 26.9, 3.7, 1.7, 0.1],
+      },
+      storeBreakdown: {
+        labels: [
+          'Ballabgarh Store', 'Hisar Store', 'Khera Store', 'Panipat Store',
+          'PTRW Ballabgarh', 'Steel Structure Workshop Panipat', 'Carrier Store Sewah',
+        ],
+        healthy: [18.2, 14.6, 11.8, 9.4, 7.2, 5.8, 4.1],
+        scrap: [4.2, 3.1, 2.8, 2.4, 1.9, 1.5, 1.2],
+      },
+      consumption: buildInventoryConsumptionSeries('all'),
+      age: buildInventoryAgeSeries('all', 'all'),
+      category: buildInventoryCategorySeries(),
+    };
+  }
+
   function initMockData() {
     const now = Date.now();
     const labels24 = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
@@ -2606,6 +2842,7 @@
           ],
         },
       },
+      inventory: buildInventoryMockData(),
     };
 
     // If processed Unispur sample data is available, hydrate key metrics/series.
@@ -5225,7 +5462,347 @@
       },
     });
 
+    initInventoryCharts(d);
+
     scheduleChartRefresh();
+  }
+
+  function initInventoryCharts(d) {
+    const inv = state.data?.inventory;
+    if (!inv) return;
+
+    const ddClassEl = document.getElementById('inv-dd-class-chart');
+    if (ddClassEl) {
+      state.charts.invDdClass = new Chart(ddClassEl, {
+        type: 'doughnut',
+        data: {
+          labels: inv.ddClassification.labels,
+          datasets: [{
+            data: inv.ddClassification.values.slice(),
+            backgroundColor: INVENTORY_DD_CLASS_COLORS,
+            borderColor: getCardBgColor(),
+            borderWidth: 3,
+            hoverOffset: 2,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '78%',
+          plugins: { legend: { display: false }, tooltip: d.tooltip },
+        },
+      });
+    }
+
+    const storeEl = document.getElementById('inv-store-breakdown-chart');
+    if (storeEl) {
+      state.charts.invStoreBreakdown = new Chart(storeEl, {
+        type: 'bar',
+        plugins: [invStoreBreakdownPlugin],
+        data: {
+          labels: inv.storeBreakdown.labels,
+          datasets: [
+            {
+              label: 'Healthy',
+              data: inv.storeBreakdown.healthy.slice(),
+              backgroundColor: INV_STORE_HEALTHY_COLOR,
+              borderRadius: { topLeft: 4, bottomLeft: 4, topRight: 0, bottomRight: 0 },
+              stack: 'store',
+              maxBarThickness: 26,
+            },
+            {
+              label: 'Scrap',
+              data: inv.storeBreakdown.scrap.slice(),
+              backgroundColor: INV_STORE_SCRAP_COLOR,
+              borderRadius: { topLeft: 0, bottomLeft: 0, topRight: 4, bottomRight: 4 },
+              stack: 'store',
+              maxBarThickness: 26,
+            },
+          ],
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          layout: { padding: { left: 6, right: 96, top: 8, bottom: 4 } },
+          datasets: {
+            bar: {
+              categoryPercentage: 0.68,
+              barPercentage: 0.9,
+            },
+          },
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: d.color,
+                font: { size: 12, weight: '700', family: 'Inter, system-ui, sans-serif' },
+                usePointStyle: true,
+                padding: 16,
+              },
+            },
+            tooltip: {
+              ...d.tooltip,
+              callbacks: {
+                label(ctx) {
+                  return ` ${ctx.dataset.label}: ${Number(ctx.parsed.x).toFixed(1)} Cr.`;
+                },
+                afterBody(items) {
+                  const idx = items[0]?.dataIndex;
+                  const chartRef = items[0]?.chart;
+                  if (idx == null || !chartRef) return [];
+                  const healthy = Number(chartRef.data.datasets[0]?.data[idx] || 0);
+                  const scrap = Number(chartRef.data.datasets[1]?.data[idx] || 0);
+                  return [`Total: ${(healthy + scrap).toFixed(1)} Cr.`];
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              stacked: true,
+              grace: '14%',
+              ticks: { ...d.ticks, callback(v) { return `${v} Cr.`; }, font: { size: 11 } },
+              grid: { color: isDark() ? 'rgba(148, 163, 184, 0.12)' : 'rgba(148, 163, 184, 0.18)' },
+              border: { display: false },
+              title: { display: true, text: 'Value (Cr.)', color: d.color, font: { size: 11, weight: '600' } },
+            },
+            y: {
+              stacked: true,
+              ticks: {
+                ...d.ticks,
+                font: { size: 11, weight: '600', family: 'Inter, system-ui, sans-serif' },
+                padding: 12,
+                crossAlign: 'far',
+                autoSkip: false,
+              },
+              grid: { display: false },
+              border: { display: false },
+            },
+          },
+        },
+      });
+    }
+
+    const consumptionEl = document.getElementById('inv-consumption-chart');
+    if (consumptionEl) {
+      state.charts.invConsumption = new Chart(consumptionEl, {
+        type: 'bar',
+        data: {
+          labels: inv.consumption.labels,
+          datasets: [
+            {
+              label: 'CWIP',
+              data: inv.consumption.cwip.slice(),
+              backgroundColor: '#3B82F6',
+              borderRadius: 4,
+              maxBarThickness: 28,
+            },
+            {
+              label: 'O&M',
+              data: inv.consumption.om.slice(),
+              backgroundColor: '#F97316',
+              borderRadius: 4,
+              maxBarThickness: 28,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: d.color, font: { size: 11 }, usePointStyle: true } },
+            tooltip: d.tooltip,
+          },
+          scales: {
+            x: {
+              ticks: { ...d.ticks, maxRotation: 45, minRotation: 45, font: { size: 10 } },
+              grid: { display: false },
+            },
+            y: {
+              ticks: { ...d.ticks, callback(v) { return `${v} L`; } },
+              grid: d.grid,
+              title: { display: true, text: 'Lakhs', color: d.color, font: { size: 11 } },
+            },
+          },
+        },
+      });
+    }
+
+    const ageEl = document.getElementById('inv-age-chart');
+    if (ageEl) {
+      const ageSeries = inv.age || buildInventoryAgeSeries();
+      state.charts.invAge = new Chart(ageEl, {
+        type: 'bar',
+        data: {
+          labels: ageSeries.map((b) => b.label),
+          datasets: [{
+            label: 'Inventory Value',
+            data: ageSeries.map((b) => b.value),
+            backgroundColor: ageSeries.map((b) => b.color),
+            borderRadius: 6,
+            maxBarThickness: 48,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...d.tooltip,
+              callbacks: {
+                label(ctx) {
+                  return ` ${Number(ctx.parsed.y).toFixed(1)} Lakhs`;
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              ticks: { ...d.ticks, maxRotation: 35, minRotation: 35, font: { size: 9 }, autoSkip: false },
+              grid: { display: false },
+            },
+            y: {
+              ticks: { ...d.ticks, callback(v) { return `${v} L`; } },
+              grid: d.grid,
+              title: { display: true, text: 'Lakhs', color: d.color, font: { size: 11 } },
+            },
+          },
+        },
+      });
+    }
+
+    const categoryEl = document.getElementById('inv-category-chart');
+    if (categoryEl) {
+      const rows = inv.category || buildInventoryCategorySeries();
+      state.charts.invCategory = new Chart(categoryEl, {
+        type: 'bar',
+        data: {
+          labels: rows.map((r) => r.circle),
+          datasets: INVENTORY_MATERIAL_CATEGORIES.map((cat) => ({
+            label: cat.label,
+            data: rows.map((r) => r[cat.key]),
+            backgroundColor: cat.color,
+            stack: 'category',
+            borderRadius: 3,
+            maxBarThickness: 42,
+          })),
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { color: d.color, font: { size: 10 }, usePointStyle: true, boxWidth: 10 },
+            },
+            tooltip: {
+              ...d.tooltip,
+              callbacks: {
+                footer(items) {
+                  const total = items.reduce((sum, item) => sum + Number(item.parsed.y || 0), 0);
+                  return `Total: ${total.toFixed(1)} Lakhs`;
+                },
+                label(ctx) {
+                  return ` ${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(1)} Lakhs`;
+                },
+              },
+            },
+          },
+          scales: {
+            x: {
+              stacked: true,
+              ticks: { ...d.ticks, maxRotation: 35, minRotation: 35, font: { size: 10 } },
+              grid: { display: false },
+            },
+            y: {
+              stacked: true,
+              ticks: { ...d.ticks, callback(v) { return `${v} L`; } },
+              grid: d.grid,
+              title: { display: true, text: 'Lakhs', color: d.color, font: { size: 11 } },
+            },
+          },
+        },
+      });
+    }
+
+    renderInventoryOverview();
+    renderInventoryConsumptionAndAge();
+    renderInventoryCategoryDistribution();
+  }
+
+  function renderInventoryOverview() {
+    const inv = state.data?.inventory;
+    if (!inv) return;
+    const s = inv.summary;
+    updateInventoryKpiCard('dd', s.ddStore);
+    updateInventoryKpiCard('site', s.siteStore);
+    updateInventoryKpiCard('total', s.total);
+
+    renderDonutSplitLegend(
+      'inv-dd-class-legend',
+      inv.ddClassification.labels,
+      inv.ddClassification.values,
+      INVENTORY_DD_CLASS_COLORS,
+      { decimals: 1 }
+    );
+    if (state.charts.invDdClass) {
+      state.charts.invDdClass.data.labels = inv.ddClassification.labels;
+      state.charts.invDdClass.data.datasets[0].data = inv.ddClassification.values.slice();
+      state.charts.invDdClass.update('none');
+    }
+    if (state.charts.invStoreBreakdown) {
+      state.charts.invStoreBreakdown.data.labels = inv.storeBreakdown.labels;
+      state.charts.invStoreBreakdown.data.datasets[0].data = inv.storeBreakdown.healthy.slice();
+      state.charts.invStoreBreakdown.data.datasets[1].data = inv.storeBreakdown.scrap.slice();
+      state.charts.invStoreBreakdown.update('none');
+    }
+  }
+
+  function renderInventoryConsumptionAndAge() {
+    const inv = state.data?.inventory;
+    if (!inv) return;
+    inv.consumption = buildInventoryConsumptionSeries(state.inventoryFy || 'all');
+    inv.age = buildInventoryAgeSeries(state.inventoryStoreType, state.inventoryRequestType);
+
+    if (state.charts.invConsumption) {
+      state.charts.invConsumption.data.labels = inv.consumption.labels;
+      state.charts.invConsumption.data.datasets[0].data = inv.consumption.cwip.slice();
+      state.charts.invConsumption.data.datasets[1].data = inv.consumption.om.slice();
+      state.charts.invConsumption.update('none');
+    }
+    if (state.charts.invAge) {
+      state.charts.invAge.data.labels = inv.age.map((b) => b.label);
+      state.charts.invAge.data.datasets[0].data = inv.age.map((b) => b.value);
+      state.charts.invAge.data.datasets[0].backgroundColor = inv.age.map((b) => b.color);
+      state.charts.invAge.update('none');
+    }
+  }
+
+  function renderInventoryCategoryDistribution() {
+    const inv = state.data?.inventory;
+    if (!inv) return;
+    if (!state.charts.invCategory) return;
+    const rows = inv.category || buildInventoryCategorySeries();
+    state.charts.invCategory.data.labels = rows.map((r) => r.circle);
+    INVENTORY_MATERIAL_CATEGORIES.forEach((cat, i) => {
+      state.charts.invCategory.data.datasets[i].data = rows.map((r) => r[cat.key]);
+    });
+    state.charts.invCategory.update('none');
+  }
+
+  function applyInventoryFyFilter() {
+    const select = document.getElementById('inv-fy-filter');
+    state.inventoryFy = select?.value || 'all';
+    renderInventoryConsumptionAndAge();
+  }
+
+  function applyInventoryAgeFilters() {
+    state.inventoryStoreType = document.getElementById('inv-store-type-filter')?.value || 'all';
+    state.inventoryRequestType = document.getElementById('inv-request-type-filter')?.value || 'all';
+    renderInventoryConsumptionAndAge();
   }
 
   // ─── DOM Updates ───────────────────────────────────────────────────────
@@ -7010,6 +7587,9 @@
     renderTsaOutageAnalytics();
     renderTsaDeemedExempt();
     renderTsaTrippingRegister();
+    renderInventoryOverview();
+    renderInventoryConsumptionAndAge();
+    renderInventoryCategoryDistribution();
 
     // Availability
     document.getElementById('availability-pct').textContent = `${data.availability.toFixed(2)}%`;
@@ -8136,9 +8716,15 @@
     });
 
     document.getElementById('page-title').textContent = VIEW_TITLES[viewId] || 'Dashboard';
+    syncHashFromView(viewId);
 
     const filterToolbar = document.querySelector('.filter-toolbar');
-    if (filterToolbar) filterToolbar.hidden = viewId === 'settings';
+    if (filterToolbar) {
+      filterToolbar.hidden = viewId === 'settings' || String(viewId).startsWith('inventory-');
+    }
+
+    const invExportBtn = document.getElementById('inv-export-report');
+    if (invExportBtn) invExportBtn.hidden = viewId !== 'inventory-overview';
 
     if (viewId === 'tsa-outage-analytics') {
       startTafmPulse();
@@ -8159,6 +8745,16 @@
         tsaGroup.classList.add('is-open');
         tsaToggle.classList.add('is-open');
         tsaToggle.setAttribute('aria-expanded', 'true');
+      }
+    }
+
+    if (String(viewId).startsWith('inventory-')) {
+      const invGroup = document.getElementById('nav-inventory-group');
+      const invToggle = document.getElementById('nav-inventory-toggle');
+      if (invGroup && invToggle) {
+        invGroup.classList.add('is-open');
+        invToggle.classList.add('is-open');
+        invToggle.setAttribute('aria-expanded', 'true');
       }
     }
 
@@ -8336,6 +8932,21 @@
       exportSoAvailabilityCsv();
     });
 
+    document.getElementById('inv-fy-apply')?.addEventListener('click', () => {
+      applyInventoryFyFilter();
+    });
+    document.getElementById('inv-age-apply')?.addEventListener('click', () => {
+      applyInventoryAgeFilters();
+    });
+    document.getElementById('inv-export-report')?.addEventListener('click', () => {
+      exportInventoryOverviewReport();
+    });
+
+    window.addEventListener('hashchange', () => {
+      const viewId = viewIdFromHash();
+      if (viewId) switchView(viewId);
+    });
+
     document.getElementById('tsa-deemed-body')?.addEventListener('click', (e) => {
       const link = e.target.closest('.tsa-attach-link');
       if (!link) return;
@@ -8485,6 +9096,12 @@
     initChartFocusMode();
     applyChartTimeFilter(false);
     bindEvents();
+    const hashView = viewIdFromHash();
+    if (hashView) switchView(hashView);
+    else {
+      const invExportBtn = document.getElementById('inv-export-report');
+      if (invExportBtn) invExportBtn.hidden = true;
+    }
     startClock();
     updateDOM();
     scheduleChartRefresh();

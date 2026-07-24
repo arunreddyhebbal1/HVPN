@@ -150,6 +150,35 @@
           </button>
         </div>
 
+        <button
+          id="nav-inventory-toggle"
+          class="nav-item nav-group-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="nav-inventory-group"
+          data-nav-group-target="nav-inventory-group"
+          title="Inventory"
+        >
+          <i data-lucide="warehouse" class="nav-icon"></i>
+          <span class="nav-label">Inventory</span>
+          <i data-lucide="chevron-down" class="nav-chevron" aria-hidden="true"></i>
+        </button>
+
+        <div id="nav-inventory-group" class="nav-group" aria-label="Inventory menu">
+          <button type="button" data-view="inventory-overview" class="nav-item nav-submenu-item" title="Overview &amp; Store Summary">
+            <i data-lucide="layout-dashboard" class="nav-icon"></i>
+            <span class="nav-label">Overview &amp; Store Summary</span>
+          </button>
+          <button type="button" data-view="inventory-consumption-and-age" class="nav-item nav-submenu-item" title="Consumption &amp; Age Analytics">
+            <i data-lucide="bar-chart-2" class="nav-icon"></i>
+            <span class="nav-label">Consumption &amp; Age Analytics</span>
+          </button>
+          <button type="button" data-view="inventory-category-distribution" class="nav-item nav-submenu-item" title="Circle &amp; Category Distribution">
+            <i data-lucide="layers" class="nav-icon"></i>
+            <span class="nav-label">Circle &amp; Category Distribution</span>
+          </button>
+        </div>
+
         <button data-view="settings" class="nav-item" title="Settings &amp; Access Control">
           <i data-lucide="settings" class="nav-icon"></i>
           <span class="nav-label">Settings</span>
@@ -205,6 +234,10 @@
           </div>
 
           <div class="header-trailing">
+            <button type="button" class="btn btn-primary btn-sm inv-export-btn" id="inv-export-report" hidden>
+              <i data-lucide="download" class="h-4 w-4"></i>
+              Export Report
+            </button>
             <div class="user-profile">
               <div class="user-avatar">AD</div>
               <span class="user-name">Admin</span>
@@ -1853,6 +1886,200 @@
                 </thead>
                 <tbody id="tsa-tripping-body"></tbody>
               </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- INVENTORY MODULE -->
+        <section id="view-inventory-overview" class="view inv-overview-view">
+          <div class="inv-overview-layout">
+            <div class="inv-kpi-band">
+              <article class="inv-kpi-card inv-kpi-card--dd">
+                <div class="inv-kpi-card-top">
+                  <div class="inv-kpi-card-head">
+                    <span class="inv-kpi-icon-wrap" aria-hidden="true"><i data-lucide="building-2"></i></span>
+                    <h3>DD Store Inventory</h3>
+                  </div>
+                  <span class="inv-kpi-badge">Total: <strong id="inv-dd-total">₹71.77 Cr.</strong></span>
+                </div>
+                <div class="inv-kpi-health">
+                  <div class="inv-kpi-health-row">
+                    <span class="inv-kpi-health-label">Healthy Material</span>
+                    <span class="inv-kpi-health-value"><strong id="inv-dd-healthy">52.41 Cr.</strong> <em id="inv-dd-healthy-pct">(73%)</em></span>
+                  </div>
+                  <div class="inv-kpi-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="73" id="inv-dd-progress-wrap">
+                    <div class="inv-kpi-progress-fill" id="inv-dd-progress" style="width: 73%"></div>
+                  </div>
+                </div>
+                <div class="inv-kpi-split">
+                  <div class="inv-kpi-split-item">
+                    <span>Capital Investment</span>
+                    <strong id="inv-dd-capital">₹26.59 Cr.</strong>
+                  </div>
+                  <div class="inv-kpi-split-item">
+                    <span>O&amp;M Allocation</span>
+                    <strong id="inv-dd-om">₹25.83 Cr.</strong>
+                  </div>
+                </div>
+              </article>
+
+              <article class="inv-kpi-card inv-kpi-card--site">
+                <div class="inv-kpi-card-top">
+                  <div class="inv-kpi-card-head">
+                    <span class="inv-kpi-icon-wrap" aria-hidden="true"><i data-lucide="map-pin"></i></span>
+                    <h3>Site Store Inventory</h3>
+                  </div>
+                  <span class="inv-kpi-badge">Total: <strong id="inv-site-total">₹131.85 Cr.</strong></span>
+                </div>
+                <div class="inv-kpi-health">
+                  <div class="inv-kpi-health-row">
+                    <span class="inv-kpi-health-label">Healthy Material</span>
+                    <span class="inv-kpi-health-value"><strong id="inv-site-healthy">123.87 Cr.</strong> <em id="inv-site-healthy-pct">(94%)</em></span>
+                  </div>
+                  <div class="inv-kpi-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="94" id="inv-site-progress-wrap">
+                    <div class="inv-kpi-progress-fill" id="inv-site-progress" style="width: 94%"></div>
+                  </div>
+                </div>
+                <div class="inv-kpi-split">
+                  <div class="inv-kpi-split-item">
+                    <span>Capital Investment</span>
+                    <strong id="inv-site-capital">₹86.48 Cr.</strong>
+                  </div>
+                  <div class="inv-kpi-split-item">
+                    <span>O&amp;M Allocation</span>
+                    <strong id="inv-site-om">₹37.39 Cr.</strong>
+                  </div>
+                </div>
+              </article>
+
+              <article class="inv-kpi-card inv-kpi-card--total">
+                <div class="inv-kpi-card-top">
+                  <div class="inv-kpi-card-head">
+                    <span class="inv-kpi-icon-wrap" aria-hidden="true"><i data-lucide="package"></i></span>
+                    <h3>Total Valuation</h3>
+                  </div>
+                  <span class="inv-kpi-badge">Total: <strong id="inv-total-total">₹203.62 Cr.</strong></span>
+                </div>
+                <div class="inv-kpi-health">
+                  <div class="inv-kpi-health-row">
+                    <span class="inv-kpi-health-label">Healthy Material</span>
+                    <span class="inv-kpi-health-value"><strong id="inv-total-healthy">176.28 Cr.</strong> <em id="inv-total-healthy-pct">(86.5%)</em></span>
+                  </div>
+                  <div class="inv-kpi-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="86" id="inv-total-progress-wrap">
+                    <div class="inv-kpi-progress-fill" id="inv-total-progress" style="width: 86.5%"></div>
+                  </div>
+                </div>
+                <div class="inv-kpi-split">
+                  <div class="inv-kpi-split-item">
+                    <span>Capital Investment</span>
+                    <strong id="inv-total-capital">₹113.07 Cr.</strong>
+                  </div>
+                  <div class="inv-kpi-split-item">
+                    <span>O&amp;M Allocation</span>
+                    <strong id="inv-total-om">₹63.22 Cr.</strong>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <div class="inv-overview-charts">
+              <div class="panel inv-overview-panel">
+                <div class="panel-header">
+                  <div>
+                    <h3>DD Store Inventory Classification</h3>
+                    <p class="card__meta">Material category split across DD stores</p>
+                  </div>
+                </div>
+                <div class="panel-body donut-split-body inv-overview-chart-body">
+                  <div class="donut-split-layout inv-donut-layout">
+                    <ul class="donut-split-legend" id="inv-dd-class-legend"></ul>
+                    <div class="donut-split-chart-wrap">
+                      <canvas id="inv-dd-class-chart" aria-label="DD store inventory classification donut chart"></canvas>
+                      <div class="donut-split-center">
+                        <span class="donut-split-center-label">DD Store</span>
+                        <span class="donut-split-center-value">Classification</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel inv-overview-panel inv-overview-panel--store">
+                <div class="panel-header">
+                  <div>
+                    <h3>Store-wise Inventory Breakdown</h3>
+                    <p class="card__meta">Healthy vs. scrap value by store location (Cr.)</p>
+                  </div>
+                </div>
+                <div class="panel-body inv-overview-chart-body inv-store-chart-wrap">
+                  <canvas id="inv-store-breakdown-chart" aria-label="Store-wise inventory breakdown chart"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-inventory-consumption-and-age" class="view view-stack">
+          <div class="panel page-section">
+            <div class="panel-header">
+              <div>
+                <h3>Circle-wise Consumption Comparison</h3>
+                <p class="card__meta">CWIP vs. O&amp;M consumption by transmission circle (Lakhs)</p>
+              </div>
+              <div class="panel-header-actions inv-filter-row">
+                <label class="inv-filter-label" for="inv-fy-filter">Financial Year</label>
+                <select id="inv-fy-filter" class="filter-select inv-filter-select">
+                  <option value="all">All</option>
+                  <option value="2025-26">2025-26</option>
+                  <option value="2026-27">2026-27</option>
+                </select>
+                <button type="button" class="btn btn-primary btn-sm" id="inv-fy-apply">Apply</button>
+              </div>
+            </div>
+            <div class="panel-body inv-consumption-chart-wrap">
+              <canvas id="inv-consumption-chart" aria-label="Circle-wise consumption comparison chart"></canvas>
+            </div>
+          </div>
+
+          <div class="panel page-section">
+            <div class="panel-header">
+              <div>
+                <h3>Age Wise Inventory Analysis</h3>
+                <p class="card__meta">Inventory value by ageing duration buckets (Lakhs)</p>
+              </div>
+              <div class="panel-header-actions inv-filter-row">
+                <label class="inv-filter-label" for="inv-store-type-filter">Type of Store</label>
+                <select id="inv-store-type-filter" class="filter-select inv-filter-select">
+                  <option value="all">All</option>
+                  <option value="dd">DD Store</option>
+                  <option value="site">Site Store</option>
+                  <option value="workshop">Workshop</option>
+                </select>
+                <label class="inv-filter-label" for="inv-request-type-filter">Request Type</label>
+                <select id="inv-request-type-filter" class="filter-select inv-filter-select">
+                  <option value="all">All</option>
+                  <option value="scrap">Scrap</option>
+                  <option value="healthy">Healthy</option>
+                </select>
+                <button type="button" class="btn btn-primary btn-sm" id="inv-age-apply">Apply</button>
+              </div>
+            </div>
+            <div class="panel-body inv-age-chart-wrap">
+              <canvas id="inv-age-chart" aria-label="Age wise inventory analysis chart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-inventory-category-distribution" class="view view-stack">
+          <div class="panel page-section">
+            <div class="panel-header">
+              <div>
+                <h3>Inventory by Circle &amp; Material Category</h3>
+                <p class="card__meta">Stacked material category values across transmission circles (Lakhs)</p>
+              </div>
+            </div>
+            <div class="panel-body inv-category-chart-wrap">
+              <canvas id="inv-category-chart" aria-label="Inventory by circle and material category chart"></canvas>
             </div>
           </div>
         </section>
